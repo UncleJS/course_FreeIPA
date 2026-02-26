@@ -577,21 +577,21 @@ ID views allow different attribute overrides for different hosts:
 
 ```mermaid
 graph TD
-    ADU[AD User: aduser1@ad.example.com<br/>SID: S-1-5-21-...-1105]
+    ADU["AD User: aduser1@ad.example.com<br/>SID: S-1-5-21-...-1105"]
 
     subgraph "Default Trust View (all hosts)"
-        OV1[Override: shell=/bin/bash<br/>homedir=/home/aduser1]
+        OV1["Override: shell=/bin/bash<br/>homedir=/home/aduser1"]
     end
 
     subgraph "DMZ View (DMZ hosts only)"
-        OV2[Override: shell=/bin/sh<br/>homedir=/tmp/aduser1]
+        OV2["Override: shell=/bin/sh<br/>homedir=/tmp/aduser1"]
     end
 
     ADU --> OV1
     ADU --> OV2
 
-    H1[IPA Client (internal)] -->|applies| OV1
-    H2[IPA Client (DMZ)] -->|applies| OV2
+    H1["IPA Client (internal)"] -->|applies| OV1
+    H2["IPA Client (DMZ)"] -->|applies| OV2
 ```
 
 ```bash
@@ -630,12 +630,12 @@ AD users cannot be added directly to HBAC rules — they must be members of **ex
 
 ```mermaid
 graph LR
-    ADU[AD User<br/>aduser1@ad.example.com]
-    ADG[AD Group<br/>linux_admins@ad.example.com]
-    EG[IPA External Group<br/>ext_linux_admins]
-    IG[IPA POSIX Group<br/>ipa_linux_admins]
-    HBAC[HBAC Rule<br/>allow_ssh_admins]
-    HOST[IPA Host<br/>server1.ipa.example.com]
+    ADU["AD User<br/>aduser1@ad.example.com"]
+    ADG["AD Group<br/>linux_admins@ad.example.com"]
+    EG["IPA External Group<br/>ext_linux_admins"]
+    IG["IPA POSIX Group<br/>ipa_linux_admins"]
+    HBAC["HBAC Rule<br/>allow_ssh_admins"]
+    HOST["IPA Host<br/>server1.ipa.example.com"]
 
     ADU -->|member of| ADG
     ADG -->|external member of| EG
