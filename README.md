@@ -61,7 +61,7 @@
 | 12 | [12_replication_topology.md](12_replication_topology.md) | Replicas, topology segments, CA replicas | Advanced |
 | 13 | [13_security_hardening.md](13_security_hardening.md) | Crypto policies, TLS 1.3, SELinux, FIPS | Expert |
 | 14 | [14_troubleshooting.md](14_troubleshooting.md) | Triage trees, logs, `ipa-healthcheck`, cert expiry | Expert |
-| 15 | [15_upgrade_migration.md](15_upgrade_migration.md) | RHEL 9→10 Leapp, backup/restore, migration | Expert |
+| 15 | [15_upgrade_migration.md](15_upgrade_migration.md) | IPA upgrades, rolling replica upgrade, backup/restore, LDAP/NIS/AD migration | Expert |
 
 ---
 
