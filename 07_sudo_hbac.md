@@ -159,8 +159,10 @@ flowchart TD
     J -->|No more rules| DENY[❌ Access denied\npam_sss returns AUTH_ERR]
 ```
 
-> 📝 HBAC uses **first-match-allow** logic. The moment any rule grants access, the
-> evaluation stops. If no rule grants access, the default is **deny**.
+> 📝 HBAC uses **any-match-allow** logic. SSSD evaluates **all** applicable rules
+> and grants access if **any single rule** matches all four conditions (user, host,
+> service, time). Rule ordering is not guaranteed — there is no first-match
+> short-circuit. If no rule grants access, the default is **deny**.
 
 ### 1.6 Testing HBAC Rules
 

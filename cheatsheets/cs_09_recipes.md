@@ -273,8 +273,10 @@ ipa-client-install \
 
 ```bash
 # On IPA server: generate one-time password for the host
+# Step 1 — create the host object (if it doesn't already exist)
 ipa host-add client1.example.com --ip-address=192.168.1.20 --force
-ipa host-add --otp="$(openssl rand -hex 16)" client1.example.com
+# Step 2 — set/generate an OTP on the existing host object
+ipa host-mod client1.example.com --otp="$(openssl rand -hex 16)"
 
 # On client
 ipa-client-install \
@@ -347,7 +349,7 @@ klist -k /etc/krb5.keytab | grep "host/"
 
 # Request certificate
 mkdir -p /etc/nginx/ssl
-ipa-getcert request \
+getcert request \
   -f /etc/nginx/ssl/server.crt \
   -k /etc/nginx/ssl/server.key \
   -K HTTP/webserver.example.com \
@@ -1108,7 +1110,7 @@ ipa topologysegment-find dc=example,dc=com
 dnf upgrade -y ipa-server ipa-client sssd krb5-server bind-dyndb-ldap
 
 # Run IPA upgrade script (applies schema/data migrations)
-ipa-upgradeinstall
+ipa-server-upgrade
 
 # Verify
 ipactl status
@@ -1119,7 +1121,7 @@ ipa-healthcheck --failures-only
 
 ```bash
 # From master, verify replica is in sync
-ipa-replica-manage status ipa-replica1.example.com
+ipa topologysuffix-verify dc=example,dc=com
 ```
 
 ### Step 5 — Upgrade CA replicas
@@ -1128,7 +1130,7 @@ ipa-replica-manage status ipa-replica1.example.com
 # On ipa-ca-replica.example.com
 dnf upgrade -y ipa-server ipa-client sssd krb5-server pki-ca
 
-ipa-upgradeinstall
+ipa-server-upgrade
 
 ipactl status
 ipa-healthcheck --failures-only
@@ -1140,7 +1142,7 @@ ipa-healthcheck --failures-only
 # On ipa.example.com (master)
 dnf upgrade -y ipa-server ipa-client sssd krb5-server pki-ca bind-dyndb-ldap
 
-ipa-upgradeinstall
+ipa-server-upgrade
 
 ipactl status
 ipa-healthcheck --failures-only

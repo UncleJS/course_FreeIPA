@@ -300,9 +300,15 @@ ipa server-show ipa2.ipa.example.com | grep "CA enabled"
 # Verify DNS
 ipa server-show ipa2.ipa.example.com | grep "DNS enabled"
 
-# Force replication check
-ipa-replica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.ipa.example.com
+# Force replication check (modern API)
+ipa topologysegment-find dc=ipa,dc=example,dc=com
+# To force a sync, restart the replication agreement via 389-DS:
+# sudo ldapmodify -x -H ldap://localhost -D "cn=Directory Manager" -W <<'EOF'
+# dn: cn=<agreement-cn>,cn=replica,...
+# changetype: modify
+# replace: nsds5replicaUpdateSchedule
+# nsds5replicaUpdateSchedule: 0000-2359 0123456
+# EOF
 
 # Run diagnostics
 sudo ipa-healthcheck --all
@@ -956,7 +962,7 @@ ipa cert-request \
     ipa2_csr.pem
 
 # Or use certmonger
-sudo ipa-getcert request \
+sudo getcert request \
     -K host/ipa2.ipa.example.com \
     -f /tmp/test-replica.crt \
     -k /tmp/test-replica.key \

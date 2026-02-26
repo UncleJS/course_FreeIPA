@@ -21,7 +21,7 @@
 
 ```bash
 # Step 1: Install AD trust packages (on every IPA trust controller)
-sudo dnf install -y freeipa-server-trust-ad
+sudo dnf install -y ipa-server-trust-ad
 
 # Step 2: Open firewall ports for AD trust
 sudo firewall-cmd --permanent --add-service=freeipa-trust

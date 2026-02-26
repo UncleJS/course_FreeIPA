@@ -511,8 +511,9 @@ flowchart TD
     A[FIPS mode enabled\nfips-mode-setup --enable] --> B{Certificate operation}
 
     B -->|Key generation| C{Algorithm?}
-    C -->|RSA < 2048 bits| FAIL1[❌ Rejected\nMinimum RSA = 3072 in FIPS 140-3]
-    C -->|RSA >= 3072| OK1[✅ Allowed]
+    C -->|RSA < 2048 bits| FAIL1[❌ Rejected\nMinimum RSA = 2048 in FIPS 140-3\n(3072+ recommended for new keys)]
+    C -->|RSA 2048–3071| OK1a[⚠️ Accepted (legacy)\nRecommend migrating to 3072+]
+    C -->|RSA >= 3072| OK1[✅ Allowed (recommended)]
     C -->|ECDSA P-256 / P-384| OK2[✅ Allowed]
     C -->|ECDSA P-521| OK3[✅ Allowed]
     C -->|DSA| FAIL2[❌ Rejected]
@@ -559,8 +560,11 @@ openssl x509 -in /etc/pki/tls/certs/ecdsa-service.crt -noout \
 # Should show: ecdsa-with-SHA256
 ```
 
-> 🔒 **FIPS 140-3 (RHEL 10):** RSA minimum is now 3072-bit (up from 2048-bit in
-> FIPS 140-2). Use ECDSA P-256 or RSA-3072+ for all new keys.
+> 🔒 **FIPS 140-3 (RHEL 10):** RSA-2048 remains the FIPS-approved minimum (per NIST
+> SP 800-131A Rev 2, valid through 2030). RSA-3072 is strongly recommended for all
+> new keys as it aligns with post-2030 NIST guidance. RHEL 10's FIPS crypto policy
+> enforces RSA-2048 as the hard minimum; use ECDSA P-256 or RSA-3072+ for new
+> deployments.
 
 [↑ Back to TOC](#table-of-contents)
 

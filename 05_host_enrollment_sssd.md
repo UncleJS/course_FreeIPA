@@ -284,11 +284,11 @@ flowchart TD
 
 ```bash
 # Test offline behaviour by simulating IPA server unreachable
-# (on the client, temporarily block IPA server)
-iptables -I OUTPUT -d 192.168.1.10 -j DROP
+# (on the client, temporarily block IPA server using firewall-cmd)
+sudo firewall-cmd --add-rich-rule='rule family="ipv4" destination address="192.168.1.10" drop'
 # Now attempt login — should use cached credentials
-# Re-enable:
-iptables -D OUTPUT -d 192.168.1.10 -j DROP
+# Re-enable (remove the block):
+sudo firewall-cmd --remove-rich-rule='rule family="ipv4" destination address="192.168.1.10" drop'
 
 # Check how long offline credentials last
 grep offline_credentials /etc/sssd/sssd.conf

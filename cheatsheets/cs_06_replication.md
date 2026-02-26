@@ -113,7 +113,10 @@ sudo ipa-healthcheck --all
 # Replication-specific checks only
 sudo ipa-healthcheck --source ipahealthcheck.ds.replication
 
-# Check replication status (ipa-replica-manage)
+# Check replication status
+# NOTE: ipa-replica-manage and ipa-csreplica-manage are low-level legacy tools.
+# They remain functional but the preferred approach is the ipa topology* API
+# and direct 389-DS LDAP monitor queries (shown below).
 sudo ipa-replica-manage -p 'DM_Password' list
 sudo ipa-replica-manage -p 'DM_Password' status
 
@@ -205,6 +208,8 @@ ipa config-show | grep "IPA CA renewal master"
 ipa config-mod --ca-renewal-master-server=ipa2.ipa.example.com
 
 # Enable CRL generation on new master
+# Always back up CS.cfg before editing:
+sudo cp /etc/pki/pki-tomcat/ca/CS.cfg /etc/pki/pki-tomcat/ca/CS.cfg.bak
 sudo sed -i \
     's/ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
     /etc/pki/pki-tomcat/ca/CS.cfg
@@ -212,6 +217,7 @@ sudo systemctl restart pki-tomcatd@pki-tomcat.service
 
 # Disable CRL generation on old master
 # (on the old CRL master)
+sudo cp /etc/pki/pki-tomcat/ca/CS.cfg /etc/pki/pki-tomcat/ca/CS.cfg.bak
 sudo sed -i \
     's/ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
     /etc/pki/pki-tomcat/ca/CS.cfg

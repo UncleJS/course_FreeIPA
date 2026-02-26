@@ -288,9 +288,14 @@ klist -k /etc/krb5.keytab -e    # show encryption types
 kinit -k -t /etc/krb5.keytab host/server1.example.com
 klist   # verify ticket obtained
 
-# Rotate a service key (invalidates old keytab!)
-ipa service-mod HTTP/webapp.example.com
-# Then re-retrieve the keytab with ipa-getkeytab
+# Rotate a service key: force new key generation then re-retrieve the keytab
+# Step 1 — generate a new key version (kvno bumped) and immediately re-retrieve
+ipa-getkeytab -s ipa.example.com \
+  -p HTTP/webapp.example.com \
+  -k /etc/httpd/conf/http.keytab \
+  -g                              # -g forces a new key to be generated
+# Note: ipa service-mod without arguments does NOT rotate the key;
+# use ipa-getkeytab -g to generate a new key (invalidates old keytab copies!)
 
 # Check current key version number
 kvno HTTP/webapp.example.com
@@ -494,6 +499,11 @@ klist -k -e /etc/krb5.keytab
 ---
 
 ## 8. Password Policies and Lockout
+
+> 📖 **See also:** [Module 03, Section 7](03_identity_users_groups.md#7-password-policies)
+> for how to create and assign password policies to groups. This section focuses on
+> how Kerberos ticket lifetimes, kvno, and account lockout counters interact with
+> those policies.
 
 ### 8.1 Policy Inheritance
 

@@ -649,4 +649,8 @@ getcert stop-tracking -f /etc/pki/tls/certs/webapp.crt
 ipa service-del HTTP/webapp.example.com
 ```
 
+> 🔁 **Next:** Continue with [Module 10 — Certificate Management: Advanced](10_certificate_management_advanced.md)
+> to explore sub-CAs, custom profiles, OCSP, CRL management, external CA chaining,
+> certmonger hooks, and FIPS-mode constraints.
+
 [↑ Back to TOC](#table-of-contents)

@@ -35,7 +35,7 @@ ipactl status
 kinit admin && klist
 
 # 4. Basic LDAP query
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y GSSAPI -b "dc=example,dc=com" "(uid=admin)" dn 2>&1 | head -20
 
 # 5. DNS self-resolution
@@ -63,7 +63,7 @@ ipactl restart           # restart all (graceful)
 ipactl stop && ipactl start   # full cycle
 
 # Individual service restart
-systemctl restart dirsrv@EXAMPLE-COM
+systemctl restart dirsrv@IPA-EXAMPLE-COM
 systemctl restart krb5kdc
 systemctl restart kadmin
 systemctl restart httpd
@@ -75,7 +75,7 @@ systemctl restart ipa-custodia
 ### 2.2 Service Status Detail
 
 ```bash
-systemctl status dirsrv@EXAMPLE-COM --no-pager -l
+systemctl status dirsrv@IPA-EXAMPLE-COM --no-pager -l
 systemctl status krb5kdc --no-pager -l
 systemctl status pki-tomcatd@pki-tomcat --no-pager -l
 systemctl status httpd --no-pager -l
@@ -130,8 +130,8 @@ ipa-healthcheck --source ipahealthcheck.ipa.dna
 
 | Component | Log Path |
 |-----------|----------|
-| 389-DS (Directory) | `/var/log/dirsrv/slapd-EXAMPLE-COM/errors` |
-| 389-DS access | `/var/log/dirsrv/slapd-EXAMPLE-COM/access` |
+| 389-DS (Directory) | `/var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors` |
+| 389-DS access | `/var/log/dirsrv/slapd-IPA-EXAMPLE-COM/access` |
 | KDC | `/var/log/krb5kdc.log` |
 | kadmin | `/var/log/kadmind.log` |
 | Apache / WebUI | `/var/log/httpd/error_log` |
@@ -149,13 +149,13 @@ ipa-healthcheck --source ipahealthcheck.ipa.dna
 
 ```bash
 # Live tail of multiple logs simultaneously
-journalctl -f -u krb5kdc -u dirsrv@EXAMPLE-COM -u httpd -u pki-tomcatd@pki-tomcat
+journalctl -f -u krb5kdc -u dirsrv@IPA-EXAMPLE-COM -u httpd -u pki-tomcatd@pki-tomcat
 
 # Last 100 lines of DS errors
-journalctl -u dirsrv@EXAMPLE-COM -n 100 --no-pager
+journalctl -u dirsrv@IPA-EXAMPLE-COM -n 100 --no-pager
 
 # Search for errors in DS log
-journalctl -u dirsrv@EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cannot'
+journalctl -u dirsrv@IPA-EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cannot'
 ```
 
 ---
@@ -262,7 +262,7 @@ grep pkinit /etc/krb5.conf
 
 ```bash
 # LDAP via socket (fastest, server-local only)
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=config" "(cn=config)" dn 2>/dev/null | head -5
 
 # LDAP via network with GSSAPI (from client)
@@ -279,15 +279,15 @@ ldapsearch -H ldaps://ipa.example.com:636 \
 
 ```bash
 # Find user
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=users,cn=accounts,dc=example,dc=com" "(uid=jdoe)"
 
 # Find group
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=groups,cn=accounts,dc=example,dc=com" "(cn=admins)"
 
 # Count all users
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=users,cn=accounts,dc=example,dc=com" \
   "(objectClass=inetOrgPerson)" dn 2>/dev/null | grep "^dn:" | wc -l
 ```
@@ -296,9 +296,9 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
 
 ```bash
 # Only possible locally as root
-dsconf slapd-EXAMPLE-COM config replace nsslapd-rootpw="$(pwdhash -s PBKDF2_SHA256 'NewPassword123!')"
+dsconf slapd-IPA-EXAMPLE-COM config replace nsslapd-rootpw="$(pwdhash -s PBKDF2_SHA256 'NewPassword123!')"
 # OR
-ldappasswd -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldappasswd -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -D "cn=Directory Manager" -S
 ```
 
@@ -306,24 +306,24 @@ ldappasswd -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
 
 ```bash
 # List indexes
-dsconf slapd-EXAMPLE-COM index list
+dsconf slapd-IPA-EXAMPLE-COM index list
 
 # Reindex after schema change
-dsconf slapd-EXAMPLE-COM index reindex --wait
+dsconf slapd-IPA-EXAMPLE-COM index reindex --wait
 
 # Check schema
-dsconf slapd-EXAMPLE-COM schema objectclass list | grep ipa
+dsconf slapd-IPA-EXAMPLE-COM schema objectclass list | grep ipa
 ```
 
 ### 5.5 DS Performance
 
 ```bash
 # Connection count
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=monitor" "(objectClass=*)" currentconnections 2>/dev/null
 
 # Slow query threshold (ms)
-dsconf slapd-EXAMPLE-COM config get nsslapd-idletimeout nsslapd-ioblocktimeout
+dsconf slapd-IPA-EXAMPLE-COM config get nsslapd-idletimeout nsslapd-ioblocktimeout
 ```
 
 ---
@@ -360,7 +360,7 @@ for cert in \
   /etc/ipa/ca.crt \
   /var/lib/ipa/certs/httpd.crt \
   /var/kerberos/krb5kdc/kdc.crt \
-  /etc/dirsrv/slapd-EXAMPLE-COM/Server-Cert.pem; do
+  /etc/dirsrv/slapd-IPA-EXAMPLE-COM/Server-Cert.pem; do
   [ -f "$cert" ] && echo "=== $cert ===" && \
     openssl x509 -noout -enddate -in "$cert" 2>/dev/null
 done
@@ -406,11 +406,11 @@ openssl verify -CAfile /etc/ipa/ca.crt /var/lib/ipa/ra-agent.pem
 
 ```bash
 # List certs in NSS db
-certutil -L -d /etc/dirsrv/slapd-EXAMPLE-COM/
+certutil -L -d /etc/dirsrv/slapd-IPA-EXAMPLE-COM/
 certutil -L -d /etc/httpd/alias/
 
 # Verify cert chain
-certutil -V -u V -d /etc/dirsrv/slapd-EXAMPLE-COM/ -n "Server-Cert"
+certutil -V -u V -d /etc/dirsrv/slapd-IPA-EXAMPLE-COM/ -n "Server-Cert"
 
 # Check OCSP/CRL config
 ipa config-show | grep -i crl
@@ -605,7 +605,13 @@ systemctl start sssd
 ### 9.1 Replication Status
 
 ```bash
-# List all replicas
+# List all replicas (modern API)
+ipa topologysegment-find dc=ipa,dc=example,dc=com
+ipa topologysuffix-find
+
+# Legacy low-level tools (still functional, but prefer topology API above):
+# NOTE: ipa-replica-manage / ipa-csreplica-manage are not deprecated outright
+# but are low-level 389-DS wrappers — use topology API for day-to-day management.
 ipa-replica-manage list
 ipa-replica-manage list --verbose
 
@@ -624,11 +630,11 @@ ipa-csreplica-manage status ipa2.example.com
 
 ```bash
 # Replication errors
-journalctl -u dirsrv@EXAMPLE-COM --since "1 hour ago" | \
+journalctl -u dirsrv@IPA-EXAMPLE-COM --since "1 hour ago" | \
   grep -iE 'repl|agmt|nsds5|error' | head -40
 
 # Check replication agreement state via LDAP
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "cn=config" \
   "(objectClass=nsds5ReplicationAgreement)" \
@@ -642,13 +648,13 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
 
 ```bash
 # Check for replication conflicts (tombstones)
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "dc=example,dc=com" \
   "(nsds5ReplConflict=*)" dn nsds5ReplConflict 2>/dev/null
 
 # Count conflict entries
-ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "dc=example,dc=com" \
   "(nsds5ReplConflict=*)" dn 2>/dev/null | grep "^dn:" | wc -l
@@ -866,14 +872,14 @@ certutil -d /etc/httpd/alias/ -K
 
 ```bash
 # Reset Directory Manager password (must be on the server, as root)
-systemctl stop dirsrv@EXAMPLE-COM
-ns-slapd -D /etc/dirsrv/slapd-EXAMPLE-COM -w /etc/dirsrv/slapd-EXAMPLE-COM/dse.ldif &
+systemctl stop dirsrv@IPA-EXAMPLE-COM
+ns-slapd -D /etc/dirsrv/slapd-IPA-EXAMPLE-COM -w /etc/dirsrv/slapd-IPA-EXAMPLE-COM/dse.ldif &
 sleep 3
 ldappasswd -H ldap://localhost:389 -x \
   -D "cn=Directory Manager" -w current_pass \
   -s "NewPassword123!"
 kill %1
-systemctl start dirsrv@EXAMPLE-COM
+systemctl start dirsrv@IPA-EXAMPLE-COM
 ```
 
 ### 13.2 Admin Kerberos Principal Locked/Missing

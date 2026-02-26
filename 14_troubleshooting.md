@@ -99,7 +99,7 @@ graph TD
 |---------|---------|
 | `sudo ipa-healthcheck --all` | Comprehensive health scan |
 | `sudo ipactl status` | All IPA service statuses |
-| `sudo ipa-replica-manage status` | Replication lag and errors |
+| `ipa topologysegment-find dc=...` | Replication topology and agreement status |
 | `sudo getcert list` | All certmonger-tracked certs |
 | `kinit admin && klist` | Kerberos connectivity test |
 | `sudo wbinfo --ping-dc` | AD trust Netlogon test |
@@ -128,8 +128,8 @@ EOF
 # KDC trace
 KRB5_TRACE=/dev/stderr kinit admin 2>&1 | head -50
 
-# Apache SSL debug
-# In /etc/httpd/conf.d/nss.conf, temporarily set:
+# Apache SSL debug (RHEL 10 uses mod_ssl — mod_nss was removed)
+# In /etc/httpd/conf.d/ssl.conf (or IPA's /etc/httpd/conf.d/ipa.conf), temporarily set:
 # LogLevel debug ssl:trace4
 sudo systemctl reload httpd
 ```
@@ -693,8 +693,14 @@ ipa hbactest \
 ### 9.1 Replication Lag Detection
 
 ```bash
-# Check replication status
-sudo ipa-replica-manage -p 'DM_Password' status
+# Check replication status via 389-DS LDAP monitor (modern approach)
+sudo ldapsearch -x -H ldap://localhost \
+    -D "cn=Directory Manager" -W \
+    -b "cn=monitor" \
+    "(objectClass=nsds5replicationagreement)" \
+    nsds5replicaLastUpdateStatus \
+    nsds5replicaLastUpdateEnd \
+    nsds5replicaUpdateInProgress
 
 # Check via 389-DS monitor
 sudo ldapsearch -x -H ldap://localhost \
@@ -727,11 +733,24 @@ sudo ldapsearch -x -H ldap://localhost \
 # Re-initialize from a healthy replica (rebuilds all data on target)
 # WARNING: destructive — target loses all local changes
 
-# From the TARGET replica (to be re-initialized)
+# Modern approach: use ipa-replica-manage re-initialize (low-level 389-DS tool,
+# still functional for full re-init when topology API is insufficient):
+# From the TARGET replica:
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
     --from=ipa1.ipa.example.com
 
-# Or from a different server:
+# Alternatively, use the 389-DS nsds5replicaEnabled toggle to trigger re-init:
+# sudo ldapmodify -x -H ldap://localhost -D "cn=Directory Manager" -W <<'EOF'
+# dn: cn=<agreement>,cn=replica,...
+# changetype: modify
+# replace: nsds5replicaEnabled
+# nsds5replicaEnabled: off
+# -
+# replace: nsds5replicaEnabled
+# nsds5replicaEnabled: on
+# EOF
+
+# Force sync (triggers an immediate replication cycle):
 sudo ipa-replica-manage -p 'DM_Password' force-sync \
     --from=ipa1.ipa.example.com
 
@@ -831,7 +850,7 @@ sudo tail -30 /var/log/httpd/ssl_error_log
 # 1. httpd cert expired — check with getcert list
 # 2. SELinux blocking httpd — ausearch -m avc | grep httpd
 # 3. Port 443 not open — firewall-cmd --list-all
-# 4. mod_nss / mod_ssl misconfiguration
+# 4. mod_ssl misconfiguration (mod_nss was removed in RHEL 10; IPA uses mod_ssl)
 
 # Test HTTP redirect
 curl -v http://ipa1.ipa.example.com/

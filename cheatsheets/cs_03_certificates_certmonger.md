@@ -61,14 +61,14 @@ sudo getcert list-cas
 
 ```bash
 # Request cert for an IPA service principal (certmonger)
-sudo ipa-getcert request \
+sudo getcert request \
     -K HTTP/webapp.ipa.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
     -w                           # wait for cert
 
 # With SANs
-sudo ipa-getcert request \
+sudo getcert request \
     -K HTTP/webapp.ipa.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
@@ -77,7 +77,7 @@ sudo ipa-getcert request \
     -w
 
 # Request with specific profile
-sudo ipa-getcert request \
+sudo getcert request \
     -K host/server1.ipa.example.com \
     -T caIPAserviceCert \
     -f /etc/ssl/server.crt \
@@ -85,7 +85,7 @@ sudo ipa-getcert request \
     -w
 
 # Request with post-save command (e.g., restart httpd)
-sudo ipa-getcert request \
+sudo getcert request \
     -K HTTP/webapp.ipa.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
@@ -93,7 +93,7 @@ sudo ipa-getcert request \
     -w
 
 # Request cert for a user principal
-sudo ipa-getcert request \
+sudo getcert request \
     -K jsmith@IPA.EXAMPLE.COM \
     -T caIPAuserCert \
     -f /tmp/jsmith.crt \
@@ -101,7 +101,8 @@ sudo ipa-getcert request \
     -w
 
 # Manual CSR-based request (when not using certmonger)
-openssl genrsa -out server.key 2048
+# Note: RSA-2048 is the minimum; use RSA-3072+ for new keys (required in FIPS mode)
+openssl genrsa -out server.key 3072
 openssl req -new -key server.key \
     -subj "/CN=server1.ipa.example.com" \
     -out server.csr
@@ -193,8 +194,8 @@ ipa certprofile-del MyCustomProfile
 ## CSR Operations
 
 ```bash
-# Generate RSA key + CSR
-openssl genrsa -out server.key 2048
+# Generate RSA key + CSR (use 3072+ for new keys; 2048 is the absolute minimum)
+openssl genrsa -out server.key 3072
 openssl req -new -key server.key \
     -subj "/CN=server1.ipa.example.com/O=IPA.EXAMPLE.COM" \
     -out server.csr

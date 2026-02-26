@@ -68,7 +68,8 @@ sudo ipa-healthcheck --all --output-type human 2>&1 | \
 # Target: 0 ERRORs. Resolve before proceeding.
 
 # 2. Check replication is in sync
-sudo ipa-replica-manage -p 'DM_Password' status
+ipa topologysuffix-verify dc=ipa,dc=example,dc=com
+ipa topologysegment-find dc=ipa,dc=example,dc=com
 
 # 3. Check certificate validity (don't upgrade with near-expiry certs)
 sudo getcert list | grep -E "expires:|status:"
@@ -206,12 +207,12 @@ When Red Hat releases a new FreeIPA point release within RHEL 10:
 # Check available FreeIPA versions
 sudo dnf list --available freeipa-server
 
-# Apply FreeIPA-specific update
-sudo dnf update freeipa-server \
-               freeipa-server-common \
-               freeipa-server-dns \
-               freeipa-server-trust-ad \
-               freeipa-client \
+# Apply FreeIPA-specific update (RHEL 10 package names use 'ipa-' prefix)
+sudo dnf update ipa-server \
+               ipa-server-common \
+               ipa-server-dns \
+               ipa-server-trust-ad \
+               ipa-client \
                python3-ipaserver \
                python3-ipaclient
 
@@ -296,7 +297,7 @@ graph TD
 SERVER=ipa2.ipa.example.com
 
 # 1. Verify replication is healthy
-sudo ipa-replica-manage -p 'DM_Password' status $SERVER
+ipa topologysuffix-verify dc=ipa,dc=example,dc=com
 
 # 2. Check clients are using OTHER replicas (no single point of failure)
 # DNS SRV weight/priority should distribute clients
@@ -846,6 +847,7 @@ sudo ipa-restore \
     /var/lib/ipa/backup/ipa-full-2026-02-26-02-00-00
 
 # After restore on single master — re-initialize all replicas
+# (ipa-replica-manage re-initialize is still the correct low-level tool for this)
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
     --from=ipa1.ipa.example.com
 ```
@@ -862,13 +864,14 @@ sudo ipa-replica-manage -p 'DM_Password' re-initialize \
 
 ```bash
 # On ipa1 — capture baseline
+TODAY=$(date +%Y%m%d)
 sudo ipa-healthcheck --all --output-type json \
-    > /tmp/pre-upgrade-health-$(date +%Y%m%d).json
+    > /tmp/pre-upgrade-health-${TODAY}.json
 
 # Summarize
 python3 -c "
 import json
-with open('/tmp/pre-upgrade-health-$(date +%Y%m%d).json') as f:
+with open('/tmp/pre-upgrade-health-${TODAY}.json') as f:
     data = json.load(f)
 total = len(data)
 ok = sum(1 for r in data if r['result'] == 'SUCCESS')
@@ -972,17 +975,19 @@ ipa user-del miguser1 miguser2
 
 ```bash
 # Capture post-lab state
+TODAY=$(date +%Y%m%d)
 sudo ipa-healthcheck --all --output-type json \
-    > /tmp/post-upgrade-health-$(date +%Y%m%d).json
+    > /tmp/post-upgrade-health-${TODAY}.json
 
 # Compare with pre-upgrade baseline
-python3 << 'EOF'
+# Note: use an unquoted heredoc delimiter so shell variables expand correctly
+python3 << EOF
 import json
 
-with open('/tmp/pre-upgrade-health-$(date +%Y%m%d).json') as f:
+with open('/tmp/pre-upgrade-health-${TODAY}.json') as f:
     pre = {r['check']: r['result'] for r in json.load(f)}
 
-with open('/tmp/post-upgrade-health-$(date +%Y%m%d).json') as f:
+with open('/tmp/post-upgrade-health-${TODAY}.json') as f:
     post = {r['check']: r['result'] for r in json.load(f)}
 
 regressions = [(k, pre.get(k,'N/A'), v) for k, v in post.items()

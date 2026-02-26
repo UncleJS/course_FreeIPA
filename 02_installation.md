@@ -448,7 +448,7 @@ curl -s https://ipa.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
 ```
 
 **Expected final state:**
-- `ipactl status` shows all 6 services as `RUNNING`
+- `ipactl status` shows all 8 services as `RUNNING` (dirsrv, krb5kdc, kadmin, pki-tomcatd, named, httpd, certmonger, sssd)
 - `kinit admin` succeeds
 - `ipa user-find` returns `admin`
 - `ipa-healthcheck` shows no `ERROR` or `CRITICAL` results

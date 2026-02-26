@@ -166,7 +166,7 @@ erDiagram
 
 ```bash
 # Install AD trust packages on EVERY IPA master that will be a trust controller
-sudo dnf install -y freeipa-server-trust-ad
+sudo dnf install -y ipa-server-trust-ad
 
 # Verify Samba and winbind are available
 rpm -q samba samba-winbind samba-client
@@ -238,8 +238,8 @@ chronyc tracking | grep "System time"
 
 ```mermaid
 flowchart TD
-    A[Start] --> B{freeipa-server-trust-ad installed?}
-    B -- No --> B1[dnf install freeipa-server-trust-ad] --> C
+    A[Start] --> B{ipa-server-trust-ad installed?}
+    B -- No --> B1[dnf install ipa-server-trust-ad] --> C
     B -- Yes --> C{DNS mutually resolvable?}
     C -- No --> C1[Add DNS forwarders] --> D
     C -- Yes --> D{Ports 88/389/445/3268 open?}
@@ -788,7 +788,7 @@ graph TD
     PAC["PAC Contents:<br/>• User SID<br/>• Group SIDs<br/>• Account flags<br/>• Logon hours<br/>• Password expiry"]
     TICKET[Kerberos Ticket]
     IPA_KDC[IPA KDC]
-    VALIDATE["IPA validates:<br/>1. PAC signature (HMAC-MD5/SHA1)<br/>2. SID matches trust<br/>3. SID filtering<br/>4. Maps SID → UID via ID range"]
+    VALIDATE["IPA validates:<br/>1. PAC signature (AES-based checksum, RFC 8009)<br/>2. SID matches trust<br/>3. SID filtering<br/>4. Maps SID → UID via ID range"]
 
     AD_KDC -->|embeds| PAC
     PAC -->|inside| TICKET
@@ -955,10 +955,10 @@ kvno -S host server1.ipa.example.com
 
 ```bash
 # On ipa1
-sudo dnf install -y freeipa-server-trust-ad
+sudo dnf install -y ipa-server-trust-ad
 
 # Verify
-rpm -q freeipa-server-trust-ad samba samba-winbind
+rpm -q ipa-server-trust-ad samba samba-winbind
 ```
 
 ### Lab 12.2 — Configure DNS Forwarder

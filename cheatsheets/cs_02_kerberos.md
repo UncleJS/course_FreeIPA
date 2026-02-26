@@ -214,8 +214,9 @@ ipa krbtpolicy-show
 
 # Modify global policy
 ipa krbtpolicy-mod \
-    --maxlife=36000 \     # 10 hours
-    --maxrenew=604800     # 7 days
+    --maxlife=36000 \
+    --maxrenew=604800
+# maxlife=36000 = 10 hours; maxrenew=604800 = 7 days
 
 # Per-user policy
 ipa krbtpolicy-mod --user=admin --maxlife=7200

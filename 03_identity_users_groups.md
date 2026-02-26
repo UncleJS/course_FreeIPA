@@ -426,6 +426,10 @@ sequenceDiagram
 IPA password policies define complexity, history, lockout, and expiry rules.
 Policies are applied at the **global** level or to specific **groups**.
 
+> 📖 **See also:** [Module 04, Section 8](04_authentication_kerberos.md#8-password-policies-and-lockout)
+> for how password policies interact with Kerberos ticket lifetimes, account
+> lockout counters, and per-user policy priority resolution.
+
 ```mermaid
 graph TD
     A[Global Password Policy\napplies to all users] -->|overridden by| B[Group Policy\nhigher priority wins]

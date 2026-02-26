@@ -280,12 +280,23 @@ ipa user-show jsmith | grep "Account disabled\|Locked"
 ### 4.4 Kerberos Anonymous PKINIT
 
 ```bash
-# Anonymous PKINIT allows unauthenticated service discovery
-# Disable if not required:
-sudo kadmin.local -q "modprinc -requires_preauth WELLKNOWN/ANONYMOUS"
+# Anonymous PKINIT allows unauthenticated clients to obtain an anonymous TGT
+# for service discovery. Disable it if not required.
+# The correct method is to disable the anonymous PKINIT flag in the KDC config:
 
-# Or via IPA:
-ipa config-mod --ipakrbauthzdata=MS-PAC
+# Check if anonymous PKINIT is enabled
+sudo grep -r "pkinit_allow_upn\|no_auth_data_required" /etc/krb5.conf /etc/krb5.conf.d/ 2>/dev/null
+
+# Disable anonymous PKINIT by adding 'no_anonymous' to the IPA KDC config:
+sudo grep -r "pkinit" /var/kerberos/krb5kdc/kdc.conf
+
+# Disable via kadmin — flag the WELLKNOWN/ANONYMOUS principal as requiring pre-auth
+# (this prevents unauthenticated AS-REQ from obtaining an anonymous TGT):
+sudo kadmin.local -q "modprinc +requires_preauth WELLKNOWN/ANONYMOUS@IPA.EXAMPLE.COM"
+
+# Verify:
+sudo kadmin.local -q "getprinc WELLKNOWN/ANONYMOUS@IPA.EXAMPLE.COM" | \
+    grep "Requires pre-authentication"
 ```
 
 ### 4.5 KDC Hardening
@@ -463,6 +474,9 @@ sudo grep "policyset.serverCertSet.2.default.params.range" \
     /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg
 
 # Change validity from 2 years to 1 year (365 days)
+# Always take a backup before modifying Dogtag profile files:
+sudo cp /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg \
+    /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg.bak
 sudo sed -i \
     's/policyset.serverCertSet.2.default.params.range=730/policyset.serverCertSet.2.default.params.range=365/' \
     /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg
