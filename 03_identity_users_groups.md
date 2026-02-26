@@ -108,11 +108,7 @@ graph TD
     D -->|ipa user-undel| B
     D -->|ipa user-del --permanent| E[Permanently Deleted\ncannot restore]
 
-    style A fill:#f9f,stroke:#333
-    style B fill:#9f9,stroke:#333
-    style C fill:#ff9,stroke:#333
-    style D fill:#f99,stroke:#333
-    style E fill:#900,color:#fff,stroke:#333
+
 ```
 
 | State | LDAP location | Description |
