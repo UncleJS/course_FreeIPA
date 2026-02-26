@@ -498,10 +498,10 @@ getcert list
 ```mermaid
 graph TD
     subgraph "IPA Server Certmonger-tracked Certs"
-        H[httpd\nHTTPS UI+API\nHTTP/ipa.example.com] -->|cert| HC[/etc/httpd/alias\nNSS DB]
-        L[389-DS\nLDAPS\nldap/ipa.example.com] -->|cert| LC[/etc/dirsrv/slapd-*/\nNSS DB]
-        K[krb5kdc\nPKINIT\nkrbprinc/ipa.example.com] -->|cert| KC[/var/kerberos/krb5kdc/\nkdc.crt]
-        R[Dogtag RA Agent\nregistration authority] -->|cert| RC[/var/lib/ipa/\nra-agent.pem]
+        H["httpd\nHTTPS UI+API\nHTTP/ipa.example.com"] -->|cert| HC["etc/httpd/alias\nNSS DB"]
+        L["389-DS\nLDAPS\nldap/ipa.example.com"] -->|cert| LC["etc/dirsrv/slapd-REALM\nNSS DB"]
+        K["krb5kdc\nPKINIT\nkrbprinc/ipa.example.com"] -->|cert| KC["var/kerberos/krb5kdc\nkdc.crt"]
+        R["Dogtag RA Agent\nregistration authority"] -->|cert| RC["var/lib/ipa\nra-agent.pem"]
     end
 ```
 

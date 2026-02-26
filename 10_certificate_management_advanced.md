@@ -423,13 +423,13 @@ is revoked in real-time, without downloading the full CRL.
 ```mermaid
 graph TD
     subgraph "OCSP Validation"
-        CLIENT[TLS Client\nbrowser / curl] -->|1. connects to server| SERVER[Server with IPA cert]
-        CLIENT -->|2. extract OCSP URL from cert\nAIA extension| OCSP_URL["http://ipa.example.com/ca/ocsp"]
-        CLIENT -->|3. OCSP Request\nserial number| OCSP["Dogtag OCSP Responder\nipa.example.com/ca/ocsp"]
-        OCSP -->|check serial| DB[(Dogtag cert DB\n+ revocation list)]
-        DB -->|revocation status| OCSP
-        OCSP -->|4. OCSP Response\n(signed: good/revoked/unknown)| CLIENT
-        CLIENT -->|5. Accept or reject\nTLS connection| SERVER
+        CLIENT["TLS Client\nbrowser / curl"] -->|"1. connects to server"| SERVER["Server with IPA cert"]
+        CLIENT -->|"2. extract OCSP URL\nAIA extension"| OCSP_URL["Dogtag OCSP URL\nipa.example.com/ca/ocsp"]
+        CLIENT -->|"3. OCSP Request\nserial number"| OCSP["Dogtag OCSP Responder"]
+        OCSP -->|"check serial"| DB[("Dogtag cert DB\nrevocation list")]
+        DB -->|"revocation status"| OCSP
+        OCSP -->|"4. OCSP Response\nsigned: good/revoked/unknown"| CLIENT
+        CLIENT -->|"5. Accept or reject\nTLS connection"| SERVER
     end
 ```
 
@@ -508,23 +508,23 @@ operations:
 
 ```mermaid
 flowchart TD
-    A[FIPS mode enabled\nfips-mode-setup --enable] --> B{Certificate operation}
+    A["FIPS mode enabled\nfips-mode-setup --enable"] --> B{"Certificate operation"}
 
-    B -->|Key generation| C{Algorithm?}
-    C -->|RSA < 2048 bits| FAIL1[❌ Rejected\nMinimum RSA = 2048 in FIPS 140-3\n(3072+ recommended for new keys)]
-    C -->|RSA 2048–3071| OK1a[⚠️ Accepted (legacy)\nRecommend migrating to 3072+]
-    C -->|RSA >= 3072| OK1[✅ Allowed (recommended)]
-    C -->|ECDSA P-256 / P-384| OK2[✅ Allowed]
-    C -->|ECDSA P-521| OK3[✅ Allowed]
-    C -->|DSA| FAIL2[❌ Rejected]
+    B -->|Key generation| C{"Algorithm?"}
+    C -->|"RSA less than 2048 bits"| FAIL1["REJECTED\nMinimum RSA = 2048 in FIPS 140-3\n3072+ recommended for new keys"]
+    C -->|"RSA 2048-3071"| OK1a["ACCEPTED legacy\nRecommend migrating to 3072+"]
+    C -->|"RSA 3072 or above"| OK1["ALLOWED - recommended"]
+    C -->|"ECDSA P-256 or P-384"| OK2["ALLOWED"]
+    C -->|"ECDSA P-521"| OK3["ALLOWED"]
+    C -->|DSA| FAIL2["REJECTED"]
 
-    B -->|Signature algorithm| D{Hash?}
-    D -->|SHA-1| FAIL3[❌ Rejected\nSHA-1 prohibited in FIPS]
-    D -->|SHA-256 / SHA-384 / SHA-512| OK4[✅ Allowed]
+    B -->|Signature algorithm| D{"Hash?"}
+    D -->|SHA-1| FAIL3["REJECTED\nSHA-1 prohibited in FIPS"]
+    D -->|"SHA-256 / SHA-384 / SHA-512"| OK4["ALLOWED"]
 
-    B -->|Certificate profiles| E{Profile uses SHA-1?}
-    E -->|Yes| FAIL4[❌ Profile must be updated\nChange to SHA256withRSA or SHA384withECDSA]
-    E -->|No| OK5[✅ Profile allowed]
+    B -->|Certificate profiles| E{"Profile uses SHA-1?"}
+    E -->|Yes| FAIL4["Profile must be updated\nChange to SHA256withRSA or SHA384withECDSA"]
+    E -->|No| OK5["Profile allowed"]
 ```
 
 ```bash

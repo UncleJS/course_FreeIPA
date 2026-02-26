@@ -175,10 +175,10 @@ Understanding the underlying ACI syntax helps when debugging permission issues:
 
 ```mermaid
 graph TD
-    ACI["389-DS ACI string:\n(targetattr = \"mail || telephoneNumber\")\n(target = \"ldap:///cn=users,cn=accounts,dc=example,dc=com\")\n(version 3.0;\nacl \"permission:Helpdesk: Modify User Mobile\";\nallow (write)\ngroupdn = \"ldap:///cn=Helpdesk: Modify User Mobile,cn=permissions,cn=pbac,dc=example,dc=com\"\n)"] --> T[Target:\nwhat LDAP objects]
-    ACI --> A[Targetattr:\nwhich attributes]
-    ACI --> P[Principal:\nwho is allowed]
-    ACI --> O[Operation:\nadd/delete/write/read]
+    ACI["389-DS ACI string"] --> T["Target\nwhat LDAP objects\nldap:///cn=users,cn=accounts,..."]
+    ACI --> A["Targetattr\nwhich attributes\ne.g. mail, telephoneNumber"]
+    ACI --> P["Principal\nwho is allowed\ngroupdn = ldap:///cn=permissions,..."]
+    ACI --> O["Operation\nadd / delete / write / read"]
 ```
 
 ```bash
