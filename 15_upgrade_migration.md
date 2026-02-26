@@ -134,7 +134,7 @@ RHEL minor version upgrades (e.g., 10.0 → 10.1) are handled by `dnf update`. I
 sudo dnf check-update | grep -E "ipa|dirsrv|pki|sssd|krb5|samba"
 
 # Review IPA-specific package updates
-sudo dnf changelog freeipa-server 2>/dev/null | head -50
+sudo dnf changelog ipa-server 2>/dev/null | head -50
 ```
 
 ### 3.2 Rolling Minor Version Upgrade
@@ -205,7 +205,7 @@ When Red Hat releases a new FreeIPA point release within RHEL 10:
 
 ```bash
 # Check available FreeIPA versions
-sudo dnf list --available freeipa-server
+sudo dnf list --available ipa-server
 
 # Apply FreeIPA-specific update (RHEL 10 package names use 'ipa-' prefix)
 sudo dnf update ipa-server \
@@ -387,7 +387,7 @@ curl -sk https://ipa1.ipa.example.com/ipa/ui/ | \
 
 # 9. Version check
 ipa --version
-rpm -q freeipa-server
+rpm -q ipa-server
 ```
 
 ### 6.2 Version Verification
@@ -396,7 +396,7 @@ rpm -q freeipa-server
 # Confirm all replicas are at the same version
 for server in ipa1.ipa.example.com ipa2.ipa.example.com; do
     echo -n "$server: "
-    ssh $server "rpm -q freeipa-server --qf '%{VERSION}-%{RELEASE}\n'"
+    ssh $server "rpm -q ipa-server --qf '%{VERSION}-%{RELEASE}\n'"
 done
 ```
 
@@ -803,7 +803,7 @@ kinit admin
 ipa user-find | head -5
 
 # Step 5: Downgrade packages (last resort — rarely possible cleanly)
-# dnf downgrade freeipa-server-X.Y.Z-N.el10.x86_64
+# dnf downgrade ipa-server-X.Y.Z-N.el10.x86_64
 # NOTE: Package downgrades may leave the DB in an incompatible state
 # Restore from backup is preferred over downgrade
 ```
@@ -889,18 +889,18 @@ ls -lh /var/lib/ipa/backup/
 
 ```bash
 # On ipa2 — check for available updates (dry-run)
-sudo dnf check-update freeipa-server
+sudo dnf check-update ipa-server
 
 # Simulate upgrade (don't apply yet in a real scenario — just inspect)
-sudo dnf update --downloadonly freeipa-server
+sudo dnf update --downloadonly ipa-server
 
 # Apply the upgrade
-sudo dnf update freeipa-server -y
+sudo dnf update ipa-server -y
 
 # Verify
 sudo ipactl status
 sudo ipa-healthcheck --all | grep -E "ERROR|WARNING|CRITICAL"
-rpm -q freeipa-server
+rpm -q ipa-server
 ```
 
 ### Lab 12.3 — Verify Replication Post-Upgrade

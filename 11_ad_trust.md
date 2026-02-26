@@ -276,7 +276,8 @@ Resolve-DnsName -Name "_kerberos._tcp.ipa.example.com" -Type SRV
 
 ```bash
 # Ensure IPA DNS has correct SRV records for its own realm
-ipa dnsrecord-find ipa.example.com --type=SRV | grep kerberos
+# Note: dnsrecord-find has no --type filter; list all and grep for SRV records
+ipa dnsrecord-find ipa.example.com | grep -A2 "kerberos"
 
 # Add missing SRV records if needed
 ipa dnsrecord-add ipa.example.com _kerberos._tcp \

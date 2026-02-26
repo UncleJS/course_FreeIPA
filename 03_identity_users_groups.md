@@ -443,20 +443,25 @@ graph TD
 ipa pwpolicy-show
 
 # Modify global policy
+# Options: minlife (min days before change), maxlife (days until expiry),
+#          history (old passwords remembered), minclasses (upper/lower/digit/special),
+#          minlength, maxfail (attempts before lockout),
+#          failinterval (window in seconds), lockouttime (seconds, 0=permanent)
 ipa pwpolicy-mod \
-  --minlife=1 \           # min days before change allowed
-  --maxlife=90 \          # days until expiry
-  --history=10 \          # number of old passwords remembered
-  --minclasses=3 \        # min character classes (upper,lower,digit,special)
-  --minlength=12 \        # min password length
-  --maxfail=5 \           # failed attempts before lockout
-  --failinterval=60 \     # window (seconds) for counting failures
-  --lockouttime=600       # lockout duration (seconds, 0=permanent)
+  --minlife=1 \
+  --maxlife=90 \
+  --history=10 \
+  --minclasses=3 \
+  --minlength=12 \
+  --maxfail=5 \
+  --failinterval=60 \
+  --lockouttime=600
 
 # Create a policy for a specific group
+# priority: lower number = higher priority
 ipa pwpolicy-add admins-policy \
   --group=admins \
-  --priority=1 \          # lower number = higher priority
+  --priority=1 \
   --minlength=16 \
   --minclasses=4 \
   --maxlife=60 \

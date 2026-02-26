@@ -39,7 +39,7 @@ sudo ipa-healthcheck --all
 
 # Check version
 ipa --version
-rpm -q freeipa-server
+rpm -q ipa-server
 ```
 
 ---

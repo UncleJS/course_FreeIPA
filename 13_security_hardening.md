@@ -147,7 +147,7 @@ openssl s_client -connect ipa1.ipa.example.com:8443 </dev/null 2>&1 | \
 ### 3.2 Enabling FIPS Before IPA Install
 
 ```bash
-# FIPS must be enabled BEFORE freeipa-server-install
+# FIPS must be enabled BEFORE ipa-server-install
 # It cannot be toggled after IPA is installed
 
 # Enable FIPS mode
@@ -938,7 +938,7 @@ sudo sed -i 's/SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
 
 ```bash
 # IPA ships its own SELinux policy module
-rpm -q ipa-server-selinux 2>/dev/null || echo "Included in freeipa-server"
+rpm -q ipa-server-selinux 2>/dev/null || echo "Included in ipa-server"
 
 # Check for SELinux denials related to IPA
 sudo ausearch -m avc -ts recent | grep -E "ipa|dirsrv|httpd|krb5kdc|named"

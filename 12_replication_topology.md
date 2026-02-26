@@ -219,7 +219,7 @@ dig +short -x 192.168.1.11         # reverse lookup should return ipa2.ipa.examp
 sudo timedatectl status
 
 # 4. Required packages
-sudo dnf install -y freeipa-server freeipa-server-dns
+sudo dnf install -y ipa-server ipa-server-dns
 
 # 5. Firewall ports (same as primary installation)
 sudo firewall-cmd --permanent --add-service=freeipa
@@ -882,7 +882,7 @@ dig +short ipa1.ipa.example.com  # → 192.168.1.10
 dig +short ipa2.ipa.example.com  # → 192.168.1.11
 
 # Install packages
-sudo dnf install -y freeipa-server freeipa-server-dns
+sudo dnf install -y ipa-server ipa-server-dns
 
 # Open firewall
 sudo firewall-cmd --permanent --add-service=freeipa

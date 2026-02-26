@@ -101,7 +101,8 @@ ipa dnsrecord-show ipa.example.com server2
 # Find all records in a zone
 ipa dnsrecord-find ipa.example.com
 ipa dnsrecord-find ipa.example.com --name=server2
-ipa dnsrecord-find ipa.example.com --type=A
+# Note: dnsrecord-find has no --type filter; use typed option to narrow results:
+ipa dnsrecord-find ipa.example.com --a-rec=""
 
 # Modify a record
 ipa dnsrecord-mod ipa.example.com server2 \

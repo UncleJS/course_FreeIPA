@@ -388,9 +388,11 @@ graph TD
 
 ```bash
 # Create a delegation rule
+# --group: group that GETS permission
+# --memberof: group BEING managed (target group)
 ipa delegation-add "HR manages employee contacts" \
-  --group=hr-admins \              # group that GETS permission
-  --membergroup=all-employees \    # group BEING managed
+  --group=hr-admins \
+  --memberof=all-employees \
   --attrs=mail,telephoneNumber,title,departmentNumber
 
 # Show the delegation rule
