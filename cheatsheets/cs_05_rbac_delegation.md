@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 08 — RBAC & Delegation](../08_rbac_delegation.md)
+
+---
+
 ## Table of Contents
 
 - [Roles](#roles)
@@ -37,7 +41,7 @@ ipa role-add-member "App Team Admin" \
 ipa role-add-member "App Team Admin" \
     --groups=app_admins
 ipa role-add-member "App Team Admin" \
-    --hosts=mgmt1.ipa.example.com
+    --hosts=mgmt1.example.com
 
 # Remove members from role
 ipa role-remove-member "App Team Admin" \
@@ -224,7 +228,7 @@ ipa role-show "Helpdesk"
 
 ```bash
 # View raw ACIs in LDAP (for advanced debugging)
-sudo ldapsearch -x -H ldaps://ipa1.ipa.example.com \
+sudo ldapsearch -x -H ldaps://ipa1.example.com \
     -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
     -W \
     -b "dc=ipa,dc=example,dc=com" \

@@ -72,8 +72,8 @@ graph TD
 
 ```mermaid
 graph TD
-    ROOT["IPA CA\n(Self-signed root)\nSubject: CN=Certificate Authority,O=EXAMPLE.COM\nValidity: 20 years\nStored: /etc/ipa/ca.crt"] --> LDAP["LDAP Service Cert\nSubject: CN=ipa.example.com\nSAN: ipa.example.com\nValidity: 2 years"]
-    ROOT --> HTTP["HTTP Service Cert\nSubject: CN=ipa.example.com\nSAN: ipa.example.com\nValidity: 2 years"]
+    ROOT["IPA CA\n(Self-signed root)\nSubject: CN=Certificate Authority,O=EXAMPLE.COM\nValidity: 20 years\nStored: /etc/ipa/ca.crt"] --> LDAP["LDAP Service Cert\nSubject: CN=ipa1.example.com\nSAN: ipa1.example.com\nValidity: 2 years"]
+    ROOT --> HTTP["HTTP Service Cert\nSubject: CN=ipa1.example.com\nSAN: ipa1.example.com\nValidity: 2 years"]
     ROOT --> KDC["KDC Cert\n(for PKINIT)\nValidity: 2 years"]
     ROOT --> DOGTAG["Dogtag RA Cert\n(Registration Authority)\nValidity: 2 years"]
     ROOT --> HOST["Host Certs\nCN=client01.example.com\nValidity: 2 years"]
@@ -318,7 +318,7 @@ ipa cert-find --subject=oldservice.example.com \
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /etc/pki/tls/certs/webapp.crt \
-  -url http://ipa.example.com/ca/ocsp
+  -url http://ipa1.example.com/ca/ocsp
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -411,7 +411,7 @@ getcert request \
 getcert request \
   -d /etc/dirsrv/slapd-EXAMPLE-COM \
   -n "Server-Cert" \
-  -K ldap/ipa.example.com \
+  -K ldap/ipa1.example.com \
   -T caIPAserviceCert
 
 # Stop tracking a certificate (does NOT revoke it)
@@ -498,9 +498,9 @@ getcert list
 ```mermaid
 graph TD
     subgraph "IPA Server Certmonger-tracked Certs"
-        H["httpd\nHTTPS UI+API\nHTTP/ipa.example.com"] -->|cert| HC["etc/httpd/alias\nNSS DB"]
-        L["389-DS\nLDAPS\nldap/ipa.example.com"] -->|cert| LC["etc/dirsrv/slapd-REALM\nNSS DB"]
-        K["krb5kdc\nPKINIT\nkrbprinc/ipa.example.com"] -->|cert| KC["var/kerberos/krb5kdc\nkdc.crt"]
+        H["httpd\nHTTPS UI+API\nHTTP/ipa1.example.com"] -->|cert| HC["etc/httpd/alias\nNSS DB"]
+        L["389-DS\nLDAPS\nldap/ipa1.example.com"] -->|cert| LC["etc/dirsrv/slapd-REALM\nNSS DB"]
+        K["krb5kdc\nPKINIT\nkrbprinc/ipa1.example.com"] -->|cert| KC["var/kerberos/krb5kdc\nkdc.crt"]
         R["Dogtag RA Agent\nregistration authority"] -->|cert| RC["var/lib/ipa\nra-agent.pem"]
     end
 ```
@@ -632,7 +632,7 @@ ipa cert-revoke $SERIAL --revocation-reason=4
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /etc/pki/tls/certs/webapp.crt \
-  -url http://ipa.example.com/ca/ocsp \
+  -url http://ipa1.example.com/ca/ocsp \
   -noverify
 
 # ── STEP 5: Health check ──────────────────────────────────────────────────────

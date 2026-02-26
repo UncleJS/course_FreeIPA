@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 04 — Authentication & Kerberos](../04_authentication_kerberos.md)
+
+---
+
 ## Table of Contents
 
 - [kinit / klist / kdestroy](#kinit--klist--kdestroy)
@@ -25,7 +29,7 @@
 # Basic ticket acquisition
 kinit                           # uses $USER@DEFAULT_REALM
 kinit admin                     # admin in default realm
-kinit admin@IPA.EXAMPLE.COM     # explicit realm
+kinit admin@EXAMPLE.COM     # explicit realm
 kinit -l 8h admin               # ticket lifetime 8 hours
 kinit -r 7d admin               # renewable lifetime 7 days
 kinit -R                        # renew existing ticket
@@ -35,8 +39,8 @@ kinit -f admin                  # forwardable
 kinit -p admin                  # proxiable
 
 # Ticket from keytab (no password prompt — for automation)
-kinit -kt /etc/krb5.keytab host/server.ipa.example.com
-kinit -kt /etc/service.keytab -k svc@IPA.EXAMPLE.COM
+kinit -kt /etc/krb5.keytab host/server.example.com
+kinit -kt /etc/service.keytab -k svc@EXAMPLE.COM
 
 # Trace kinit (debug)
 KRB5_TRACE=/dev/stderr kinit admin 2>&1
@@ -56,9 +60,9 @@ kdestroy -A                      # all ccaches
 kdestroy -c /tmp/krb5cc_1000     # specific ccache
 
 # Get service ticket (test connectivity)
-kvno host/server1.ipa.example.com
-kvno -S host server1.ipa.example.com
-kvno HTTP/ipa1.ipa.example.com
+kvno host/server1.example.com
+kvno -S host server1.example.com
+kvno HTTP/ipa1.example.com
 ```
 
 ---
@@ -68,7 +72,7 @@ kvno HTTP/ipa1.ipa.example.com
 ```bash
 # /etc/krb5.conf defaults
 [libdefaults]
-  default_realm = IPA.EXAMPLE.COM
+  default_realm = EXAMPLE.COM
   ticket_lifetime = 24h         # default TGT lifetime
   renew_lifetime = 7d           # renewable window
   forwardable = true
@@ -99,27 +103,27 @@ ipa krbtpolicy-reset --user=svc_batch
 ```bash
 # Retrieve keytab for a service principal (run on IPA server)
 ipa-getkeytab \
-    -s ipa1.ipa.example.com \
-    -p HTTP/webapp.ipa.example.com \
+    -s ipa1.example.com \
+    -p HTTP/webapp.example.com \
     -k /etc/httpd/conf/krb5.keytab
 
 # Retrieve host keytab
 ipa-getkeytab \
-    -s ipa1.ipa.example.com \
-    -p host/client1.ipa.example.com \
+    -s ipa1.example.com \
+    -p host/client1.example.com \
     -k /etc/krb5.keytab
 
 # Retrieve with specific enctype
 ipa-getkeytab \
-    -s ipa1.ipa.example.com \
-    -p host/client1.ipa.example.com \
+    -s ipa1.example.com \
+    -p host/client1.example.com \
     -k /etc/krb5.keytab \
     -e aes256-cts
 
 # Add new keys without removing old ones
 ipa-getkeytab \
-    -s ipa1.ipa.example.com \
-    -p host/client1.ipa.example.com \
+    -s ipa1.example.com \
+    -p host/client1.example.com \
     -k /etc/krb5.keytab \
     --append
 
@@ -128,7 +132,7 @@ klist -kt /etc/krb5.keytab
 ktutil -k /etc/krb5.keytab list    # alternative
 
 # Test keytab authentication
-kinit -kt /etc/krb5.keytab host/client1.ipa.example.com
+kinit -kt /etc/krb5.keytab host/client1.example.com
 klist
 
 # Set correct permissions on keytab
@@ -146,34 +150,34 @@ sudo chmod 640 /etc/httpd/conf/krb5.keytab
 
 ```bash
 # Add a service principal
-ipa service-add HTTP/webapp.ipa.example.com
-ipa service-add nfs/fileserver.ipa.example.com
-ipa service-add LDAP/ldapproxy.ipa.example.com
+ipa service-add HTTP/webapp.example.com
+ipa service-add nfs/fileserver.example.com
+ipa service-add LDAP/ldapproxy.example.com
 
 # Show principal
-ipa service-show HTTP/webapp.ipa.example.com
+ipa service-show HTTP/webapp.example.com
 
 # Add allowed kerberos enctypes restriction
-ipa service-mod HTTP/webapp.ipa.example.com \
+ipa service-mod HTTP/webapp.example.com \
     --ipakrbauthzdata=MS-PAC
 
 # Allow a host to retrieve the keytab
 ipa service-allow-retrieve-keytab \
-    HTTP/webapp.ipa.example.com \
-    --hosts=webapp.ipa.example.com
+    HTTP/webapp.example.com \
+    --hosts=webapp.example.com
 
 # Allow a host to create the keytab (write access)
 ipa service-allow-create-keytab \
-    HTTP/webapp.ipa.example.com \
-    --hosts=webapp.ipa.example.com
+    HTTP/webapp.example.com \
+    --hosts=webapp.example.com
 
 # Manage keytab retrieval delegation
 ipa service-disallow-retrieve-keytab \
-    HTTP/webapp.ipa.example.com \
-    --hosts=oldhost.ipa.example.com
+    HTTP/webapp.example.com \
+    --hosts=oldhost.example.com
 
 # Delete service principal
-ipa service-del HTTP/webapp.ipa.example.com
+ipa service-del HTTP/webapp.example.com
 ```
 
 ---
@@ -292,7 +296,7 @@ ipa user-mod jsmith --radius=corp-radius
 sudo kadmin.local
 
 # Remote kadmin (requires Kerberos auth)
-kadmin -p admin/admin@IPA.EXAMPLE.COM
+kadmin -p admin/admin@EXAMPLE.COM
 
 # kadmin commands:
 # List principals
@@ -301,15 +305,15 @@ kadmin.local -q "listprincs | grep admin"
 
 # Get principal details
 kadmin.local -q "getprinc admin"
-kadmin.local -q "getprinc host/server1.ipa.example.com"
+kadmin.local -q "getprinc host/server1.example.com"
 
 # Change principal flags
 kadmin.local -q "modprinc +requires_preauth admin"
 kadmin.local -q "modprinc -allow_forwardable svc_noproxy"
 
 # Key operations (low-level — prefer ipa-getkeytab)
-kadmin.local -q "ktadd -k /tmp/service.keytab HTTP/webapp.ipa.example.com"
-kadmin.local -q "ktremove -k /tmp/service.keytab HTTP/webapp.ipa.example.com all"
+kadmin.local -q "ktadd -k /tmp/service.keytab HTTP/webapp.example.com"
+kadmin.local -q "ktremove -k /tmp/service.keytab HTTP/webapp.example.com all"
 
 # Check database
 sudo kdb5_util dump /tmp/kdb-export.txt
@@ -332,11 +336,11 @@ klist
 kinit -f aduser@AD.EXAMPLE.COM     # forwardable required for delegation
 
 # Test cross-realm service ticket
-kvno host/ipa-client.ipa.example.com@IPA.EXAMPLE.COM
+kvno host/ipa-client.example.com@EXAMPLE.COM
 
 # Verify cross-realm krbtgt principal exists on IPA
-sudo kadmin.local -q "getprinc krbtgt/AD.EXAMPLE.COM@IPA.EXAMPLE.COM"
-sudo kadmin.local -q "getprinc krbtgt/IPA.EXAMPLE.COM@AD.EXAMPLE.COM"
+sudo kadmin.local -q "getprinc krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM"
+sudo kadmin.local -q "getprinc krbtgt/EXAMPLE.COM@AD.EXAMPLE.COM"
 
 # Check PAC in ticket (requires LDAP PAC inspection — use SSSD logs)
 id aduser@ad.example.com
@@ -353,12 +357,12 @@ sudo chronyc makestep
 kinit admin
 
 # Cannot contact KDC
-dig +short SRV _kerberos._tcp.IPA.EXAMPLE.COM
-nc -zv ipa1.ipa.example.com 88
+dig +short SRV _kerberos._tcp.EXAMPLE.COM
+nc -zv ipa1.example.com 88
 
 # Client not found
 ipa user-show USERNAME    # verify user exists
-kinit USERNAME@IPA.EXAMPLE.COM    # explicit realm
+kinit USERNAME@EXAMPLE.COM    # explicit realm
 
 # Preauthentication failed
 ipa user-unlock USERNAME

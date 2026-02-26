@@ -82,8 +82,8 @@ sequenceDiagram
 
 ```mermaid
 graph LR
-    R1["IPA Master 1<br/>ipa1.ipa.example.com<br/>CA ✓ DNS ✓"]
-    R2["IPA Replica<br/>ipa2.ipa.example.com<br/>CA ✓ DNS ✓"]
+    R1["IPA Master 1<br/>ipa1.example.com<br/>CA ✓ DNS ✓"]
+    R2["IPA Replica<br/>ipa2.example.com<br/>CA ✓ DNS ✓"]
     R1 <-->|"Topology Segment<br/>(domain + ca suffix)"| R2
 ```
 
@@ -93,10 +93,10 @@ graph LR
 
 ```mermaid
 graph TD
-    HUB["IPA Hub<br/>ipa-hub.ipa.example.com<br/>CA ✓ DNS ✓"]
-    S1["Spoke — Site A<br/>ipa-a.ipa.example.com<br/>CA ✓ DNS ✓"]
-    S2["Spoke — Site B<br/>ipa-b.ipa.example.com<br/>CA ✓ DNS ✓"]
-    S3["Spoke — Site C<br/>ipa-c.ipa.example.com<br/>DNS only"]
+    HUB["IPA Hub<br/>ipa-hub.example.com<br/>CA ✓ DNS ✓"]
+    S1["Spoke — Site A<br/>ipa-a.example.com<br/>CA ✓ DNS ✓"]
+    S2["Spoke — Site B<br/>ipa-b.example.com<br/>CA ✓ DNS ✓"]
+    S3["Spoke — Site C<br/>ipa-c.example.com<br/>DNS only"]
 
     HUB <-->|segment| S1
     HUB <-->|segment| S2
@@ -109,10 +109,10 @@ graph TD
 
 ```mermaid
 graph LR
-    R1["Site A<br/>ipa1.ipa.example.com"]
-    R2["Site B<br/>ipa2.ipa.example.com"]
-    R3["Site C<br/>ipa3.ipa.example.com"]
-    R4["Site D<br/>ipa4.ipa.example.com"]
+    R1["Site A<br/>ipa1.example.com"]
+    R2["Site B<br/>ipa2.example.com"]
+    R3["Site C<br/>ipa3.example.com"]
+    R4["Site D<br/>ipa4.example.com"]
 
     R1 <--> R2
     R2 <--> R3
@@ -159,8 +159,8 @@ ipa topologysegment-find --topologysuffix=ca
 ipa topologysegment-show domain ipa1-to-ipa2
 
 # Segment attributes:
-#   iparepltoposegmentleftnode  = ipa1.ipa.example.com
-#   iparepltoposegmentrightnode = ipa2.ipa.example.com
+#   iparepltoposegmentleftnode  = ipa1.example.com
+#   iparepltoposegmentrightnode = ipa2.example.com
 #   iparepltoposegmentdirection = both (bidirectional)
 ```
 
@@ -209,11 +209,11 @@ stateDiagram-v2
 ```bash
 # On the NEW replica host (before install):
 # 1. RHEL 10 with valid hostname
-sudo hostnamectl set-hostname ipa2.ipa.example.com
+sudo hostnamectl set-hostname ipa2.example.com
 
 # 2. DNS must resolve the new hostname
-dig +short ipa2.ipa.example.com    # should return the new host's IP
-dig +short -x 192.168.1.11         # reverse lookup should return ipa2.ipa.example.com
+dig +short ipa2.example.com    # should return the new host's IP
+dig +short -x 192.168.1.11         # reverse lookup should return ipa2.example.com
 
 # 3. Time synced
 sudo timedatectl status
@@ -240,7 +240,7 @@ sudo ipa-replica-install \
 
 # Method 2: Pre-create the host entry (then install without admin creds)
 # On existing IPA master:
-ipa host-add ipa2.ipa.example.com --ip-address=192.168.1.11
+ipa host-add ipa2.example.com --ip-address=192.168.1.11
 
 # On new replica:
 sudo ipa-replica-install \
@@ -295,10 +295,10 @@ ipa topologysegment-find --topologysuffix=domain
 ipa topologysegment-find --topologysuffix=ca
 
 # Verify replica is a CA
-ipa server-show ipa2.ipa.example.com | grep "CA enabled"
+ipa server-show ipa2.example.com | grep "CA enabled"
 
 # Verify DNS
-ipa server-show ipa2.ipa.example.com | grep "DNS enabled"
+ipa server-show ipa2.example.com | grep "DNS enabled"
 
 # Force replication check (modern API)
 ipa topologysegment-find dc=ipa,dc=example,dc=com
@@ -327,14 +327,14 @@ When you add a new replica with `ipa-replica-install`, segments are created auto
 ```bash
 # Add a direct segment between two existing replicas
 ipa topologysegment-add domain \
-    --leftnode=ipa1.ipa.example.com \
-    --rightnode=ipa3.ipa.example.com \
+    --leftnode=ipa1.example.com \
+    --rightnode=ipa3.example.com \
     --direction=both
 
 # For CA suffix (only if both replicas have CA)
 ipa topologysegment-add ca \
-    --leftnode=ipa1.ipa.example.com \
-    --rightnode=ipa3.ipa.example.com \
+    --leftnode=ipa1.example.com \
+    --rightnode=ipa3.example.com \
     --direction=both
 ```
 
@@ -362,7 +362,7 @@ ipa topologysuffix-verify ca
 ipa server-find --all
 
 # Show server details
-ipa server-show ipa1.ipa.example.com
+ipa server-show ipa1.example.com
 ```
 
 ### 5.4 Segment Direction Options
@@ -401,15 +401,15 @@ Not all CA replicas are equal. One CA replica serves as the **CRL master** — i
 
 ```mermaid
 graph TD
-    CA1["CA Replica 1 (CRL Master)<br/>ipa1.ipa.example.com<br/>Generates CRL every 4 hours"]
-    CA2["CA Replica 2<br/>ipa2.ipa.example.com<br/>Issues certs, NOT CRL master"]
-    CA3["CA Replica 3<br/>ipa3.ipa.example.com<br/>Issues certs, NOT CRL master"]
+    CA1["CA Replica 1 (CRL Master)<br/>ipa1.example.com<br/>Generates CRL every 4 hours"]
+    CA2["CA Replica 2<br/>ipa2.example.com<br/>Issues certs, NOT CRL master"]
+    CA3["CA Replica 3<br/>ipa3.example.com<br/>Issues certs, NOT CRL master"]
 
     CA1 -->|"Replicates CRL<br/>via o=ipaca suffix"| CA2
     CA1 -->|"Replicates CRL<br/>via o=ipaca suffix"| CA3
 
     LDAP_CRL[LDAP CRL endpoint<br/>ldap://ipa1.../cn=MasterCRL...]
-    HTTP_CRL[HTTP CRL endpoint<br/>http://ipa.example.com/ipa/crl/MasterCRL.bin]
+    HTTP_CRL[HTTP CRL endpoint<br/>http://ipa1.example.com/ipa/crl/MasterCRL.bin]
     CA1 --> LDAP_CRL & HTTP_CRL
 ```
 
@@ -430,7 +430,7 @@ sudo grep -r "ca.crl.MasterCRL.enable" \
 
 ```bash
 # Move CRL master to ipa2
-ipa config-mod --ca-renewal-master-server=ipa2.ipa.example.com
+ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
 # On OLD CRL master (ipa1): disable CRL generation
 sudo sed -i \
@@ -458,7 +458,7 @@ The CA renewal master is responsible for renewing the IPA CA certificate itself 
 ipa config-show | grep "IPA CA renewal master"
 
 # Move renewal master (e.g., before decommissioning a server)
-ipa config-mod --ca-renewal-master-server=ipa2.ipa.example.com
+ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
 # Verify certmonger tracks are updated
 sudo getcert list | grep -E "status|ca-error"
@@ -476,8 +476,8 @@ DNS zones in FreeIPA are stored in LDAP and automatically replicated as part of 
 
 ```mermaid
 graph LR
-    IPA1["IPA + DNS<br/>ipa1.ipa.example.com<br/>BIND reads from local 389-DS"]
-    IPA2["IPA + DNS<br/>ipa2.ipa.example.com<br/>BIND reads from local 389-DS"]
+    IPA1["IPA + DNS<br/>ipa1.example.com<br/>BIND reads from local 389-DS"]
+    IPA2["IPA + DNS<br/>ipa2.example.com<br/>BIND reads from local 389-DS"]
     LDAP["Shared LDAP suffix<br/>cn=dns,dc=ipa,dc=example,dc=com"]
 
     IPA1 <-->|LDAP replication| IPA2
@@ -497,7 +497,7 @@ sudo ipa-dns-install \
 sudo systemctl status named
 
 # Verify DNS records are visible
-dig @ipa2.ipa.example.com ipa1.ipa.example.com
+dig @ipa2.example.com ipa1.example.com
 ```
 
 ### 7.3 DNS Load Balancing
@@ -509,7 +509,7 @@ Clients should be configured to query multiple DNS servers:
 cat /etc/resolv.conf
 # nameserver 192.168.1.10   (ipa1)
 # nameserver 192.168.1.11   (ipa2)
-# search ipa.example.com
+# search example.com
 
 # Or via NetworkManager
 nmcli connection modify "System eth0" \
@@ -551,14 +551,14 @@ sudo ipa-healthcheck --all --output-type json | \
 ```bash
 # Check replication status via ipa-replica-manage
 sudo ipa-replica-manage -p 'DM_Password' list
-sudo ipa-replica-manage -p 'DM_Password' list ipa1.ipa.example.com
+sudo ipa-replica-manage -p 'DM_Password' list ipa1.example.com
 
 # Check last update time for each agreement
-sudo ipa-replica-manage -p 'DM_Password' status ipa2.ipa.example.com
+sudo ipa-replica-manage -p 'DM_Password' status ipa2.example.com
 
 # Force immediate sync
 sudo ipa-replica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 ```
 
 ### 8.3 389-DS Replication Monitoring
@@ -726,15 +726,17 @@ flowchart TD
 
 ### 10.2 Clean Removal
 
+> ⚠️ **IRREVERSIBLE** — Take a backup with `ipa-backup` before proceeding. This removes all IPA data from the replica.
+
 ```bash
 # Preferred method: remove from the replica being decommissioned
 sudo ipa-server-install --uninstall
 
 # Alternative: remove from a different active replica (if target is unreachable)
-ipa server-del ipa-old.ipa.example.com
+ipa server-del ipa-old.example.com
 
 # Force removal if server is unreachable:
-ipa server-del ipa-old.ipa.example.com --force --ignore-topology-disconnect
+ipa server-del ipa-old.example.com --force --ignore-topology-disconnect
 
 # Verify removal
 ipa server-find
@@ -760,11 +762,11 @@ sudo ipa-replica-manage -p 'DM_Password' list
 
 ```bash
 # Remove the old replica's DNS records
-ipa dnsrecord-del ipa.example.com ipa-old --a-rec=192.168.1.99
-ipa dnsrecord-del ipa.example.com ipa-old --aaaa-rec=...
+ipa dnsrecord-del example.com ipa-old --a-rec=192.168.1.99
+ipa dnsrecord-del example.com ipa-old --aaaa-rec=...
 
 # Remove SRV records if BIND doesn't auto-update
-ipa dnsrecord-find ipa.example.com | grep ipa-old
+ipa dnsrecord-find example.com | grep ipa-old
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -827,7 +829,7 @@ sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 
 # Re-initialize replica from restored master
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 ```
 
 ### 11.4 Rebuilding a Lost Replica
@@ -835,7 +837,7 @@ sudo ipa-replica-manage -p 'DM_Password' re-initialize \
 ```bash
 # If one replica is lost (hardware failure, etc.):
 # 1. Remove old server entry from IPA
-ipa server-del lost-replica.ipa.example.com --force
+ipa server-del lost-replica.example.com --force
 
 # 2. Provision a new RHEL 10 host with same or new hostname
 # 3. Install replica normally
@@ -869,17 +871,17 @@ flowchart TD
 
 ## 12. Lab — Multi-Master Replication Setup
 
-> **Environment:** Two RHEL 10 hosts: `ipa1.ipa.example.com` (existing master) and `ipa2.ipa.example.com` (new replica).
+> **Environment:** Two RHEL 10 hosts: `ipa1.example.com` (existing master) and `ipa2.example.com` (new replica).
 
 ### Lab 12.1 — Prepare the Replica Host
 
 ```bash
 # On ipa2
-sudo hostnamectl set-hostname ipa2.ipa.example.com
+sudo hostnamectl set-hostname ipa2.example.com
 
 # Verify DNS resolves both hosts
-dig +short ipa1.ipa.example.com  # → 192.168.1.10
-dig +short ipa2.ipa.example.com  # → 192.168.1.11
+dig +short ipa1.example.com  # → 192.168.1.10
+dig +short ipa2.example.com  # → 192.168.1.11
 
 # Install packages
 sudo dnf install -y ipa-server ipa-server-dns
@@ -950,7 +952,7 @@ sudo ipa-healthcheck \
     --output-type human
 
 # Check 389-DS replication status
-sudo ipa-replica-manage -p 'DM_Password' status ipa1.ipa.example.com
+sudo ipa-replica-manage -p 'DM_Password' status ipa1.example.com
 ```
 
 ### Lab 12.5 — Test CA on Replica
@@ -958,12 +960,12 @@ sudo ipa-replica-manage -p 'DM_Password' status ipa1.ipa.example.com
 ```bash
 # Issue a certificate using the replica's CA
 ipa cert-request \
-    --principal=host/ipa2.ipa.example.com \
+    --principal=host/ipa2.example.com \
     ipa2_csr.pem
 
 # Or use certmonger
 sudo getcert request \
-    -K host/ipa2.ipa.example.com \
+    -K host/ipa2.example.com \
     -f /tmp/test-replica.crt \
     -k /tmp/test-replica.key \
     -w
@@ -979,7 +981,7 @@ sudo getcert list -f /tmp/test-replica.crt
 sudo ipactl stop
 
 # From a client — verify it still works via ipa2
-kinit admin@IPA.EXAMPLE.COM
+kinit admin@EXAMPLE.COM
 ipa user-find | head -5
 
 # Add a user while ipa1 is down (writes to ipa2)

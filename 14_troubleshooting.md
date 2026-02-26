@@ -114,7 +114,7 @@ graph TD
 # SSSD debug
 sudo sss_debuglevel --all 9
 sudo systemctl restart sssd
-sudo tail -f /var/log/sssd/sssd_ipa.example.com.log
+sudo tail -f /var/log/sssd/sssd_example.com.log
 
 # 389-DS access log verbosity (temporary)
 sudo ldapmodify -x -H ldap://localhost \
@@ -188,8 +188,12 @@ sudo db2ldif -n userRoot -a /tmp/userroot-export.ldif \
 sudo kdb5_util stash -P 'MasterKey'
 
 # Error: httpd port 443 already in use
+# Step 1: identify the owning process/service
 sudo ss -tlnp | grep ':443'
-sudo fuser -k 443/tcp
+# Step 2: stop the owning systemd service (preferred — safer than kill)
+# sudo systemctl stop <service-identified-above>
+# Step 3: only as last resort if no service owns the socket
+# sudo fuser -k 443/tcp  # ⚠️ kills processes abruptly; verify with ss first
 
 # Error: pki-tomcatd certificate expired
 # See Section 6 for certificate renewal procedures
@@ -234,7 +238,7 @@ sudo journalctl -u certmonger --since "1 hour ago"
 | `Clock skew too great` | Time difference > 5 min | `sudo chronyc makestep` |
 | `Preauthentication failed` | Wrong password | Reset: `ipa passwd jsmith` |
 | `KDC can't fulfill requested option` | Enctype not supported | Check permitted_enctypes in krb5.conf |
-| `Cannot contact any KDC` | Network/DNS issue | `dig SRV _kerberos._tcp.IPA.EXAMPLE.COM` |
+| `Cannot contact any KDC` | Network/DNS issue | `dig SRV _kerberos._tcp.EXAMPLE.COM` |
 | `Credentials cache: No such file or directory` | ccache missing | `kinit` to create new ccache |
 | `Ticket expired` | TGT lifetime exceeded | `kinit` again |
 | `Credentials have been revoked` | Account locked/disabled | `ipa user-unlock jsmith` |
@@ -252,7 +256,7 @@ flowchart TD
     CK --> CK1[chronyc makestep\ntimedatectl status]
     NF --> NF1[ipa user-show USERNAME\nCheck realm: kinit user@REALM]
     PA --> PA1[ipa passwd USERNAME\nCheck lockout: ipa user-show]
-    NC --> NC1[dig SRV _kerberos._tcp.REALM\nsystemctl status krb5kdc\nping ipa1.ipa.example.com]
+    NC --> NC1[dig SRV _kerberos._tcp.REALM\nsystemctl status krb5kdc\nping ipa1.example.com]
 ```
 
 ### 4.3 KDC Log Analysis
@@ -263,10 +267,10 @@ sudo tail -f /var/log/krb5kdc.log
 
 # Common log patterns:
 # AS_REQ success:
-# "AS_REQ (4 etypes {18 17 16 23}) 192.168.1.5: ISSUE: authtime ... admin@IPA.EXAMPLE.COM"
+# "AS_REQ (4 etypes {18 17 16 23}) 192.168.1.5: ISSUE: authtime ... admin@EXAMPLE.COM"
 
 # Failed pre-auth:
-# "AS_REQ (4 etypes ...) 192.168.1.5: PREAUTH_FAILED: admin@IPA.EXAMPLE.COM"
+# "AS_REQ (4 etypes ...) 192.168.1.5: PREAUTH_FAILED: admin@EXAMPLE.COM"
 
 # Clock skew:
 # "AS_REQ ... CLOCK_SKEW"
@@ -283,15 +287,15 @@ sudo grep -E "FAILED|ERROR|PREAUTH_FAILED|CLOCK_SKEW" \
 
 ```bash
 # Verify a service principal exists
-ipa service-show host/client1.ipa.example.com
+ipa service-show host/client1.example.com
 
 # Retrieve/create keytab for a service
-ipa-getkeytab -s ipa1.ipa.example.com \
-    -p host/client1.ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
+    -p host/client1.example.com \
     -k /tmp/client1.keytab
 
 # Test a keytab
-kinit -kt /tmp/client1.keytab host/client1.ipa.example.com
+kinit -kt /tmp/client1.keytab host/client1.example.com
 klist
 
 # Check keytab contents
@@ -301,8 +305,8 @@ klist -kt /tmp/client1.keytab
 sudo klist -kt /etc/krb5.keytab
 
 # Re-create missing host keytab (must run on IPA server as admin)
-ipa-getkeytab -s ipa1.ipa.example.com \
-    -p host/client1.ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
+    -p host/client1.example.com \
     -k /etc/krb5.keytab
 ```
 
@@ -316,18 +320,18 @@ ipa-getkeytab -s ipa1.ipa.example.com \
 
 ```bash
 # Test plain LDAP
-ldapsearch -x -H ldap://ipa1.ipa.example.com \
+ldapsearch -x -H ldap://ipa1.example.com \
     -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid
 
 # Test LDAPS
-ldapsearch -x -H ldaps://ipa1.ipa.example.com \
+ldapsearch -x -H ldaps://ipa1.example.com \
     -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid
 
 # Test with GSSAPI (Kerberos)
 kinit admin
-ldapsearch -H ldap://ipa1.ipa.example.com \
+ldapsearch -H ldap://ipa1.example.com \
     -Y GSSAPI \
     -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid
@@ -428,7 +432,7 @@ sudo systemctl status pki-tomcatd@pki-tomcat.service
 sudo journalctl -u pki-tomcatd@pki-tomcat --since "1 hour ago"
 
 # Check CA is actually responding
-curl -sk https://ipa1.ipa.example.com/ca/ee/ca/ | head -20
+curl -sk https://ipa1.example.com/ca/ee/ca/ | head -20
 
 # Restart Dogtag if needed
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
@@ -474,7 +478,7 @@ ipa certprofile-show caIPAserviceCert  # Verify profile exists
 openssl req -new -key service.key \
     -out service.csr \
     -reqexts SAN \
-    -config <(cat /etc/pki/tls/openssl.cnf; echo "[SAN]\nsubjectAltName=DNS:service.ipa.example.com")
+    -config <(cat /etc/pki/tls/openssl.cnf; echo "[SAN]\nsubjectAltName=DNS:service.example.com")
 ```
 
 ### 6.5 CRL Issues
@@ -484,7 +488,7 @@ openssl req -new -key service.key \
 ipa config-show | grep "CA renewal master"
 
 # Verify CRL accessibility
-curl -s http://ipa1.ipa.example.com/ipa/crl/MasterCRL.bin | \
+curl -s http://ipa1.example.com/ipa/crl/MasterCRL.bin | \
     openssl crl -inform DER -noout -lastupdate -nextupdate
 
 # CRL should update every 4 hours (default)
@@ -510,11 +514,11 @@ sudo named-checkconf /etc/named.conf
 sudo journalctl -u named --since "10 min ago"
 
 # 3. Test IPA internal DNS
-dig @localhost ipa1.ipa.example.com A
-dig @localhost -t SRV _kerberos._tcp.ipa.example.com
+dig @localhost ipa1.example.com A
+dig @localhost -t SRV _kerberos._tcp.example.com
 
 # 4. Test from client
-dig @192.168.1.10 ipa1.ipa.example.com
+dig @192.168.1.10 ipa1.example.com
 
 # 5. Test reverse lookup
 dig -x 192.168.1.10 @192.168.1.10
@@ -554,16 +558,16 @@ sudo systemctl restart named
 
 ```bash
 # Check DNSSEC signing status
-ipa dnszone-show ipa.example.com | grep -i "DNSSEC\|key"
+ipa dnszone-show ipa1.example.com | grep -i "DNSSEC\|key"
 
 # Check DNSSEC keys exist
-ipa dnskey-find ipa.example.com 2>/dev/null | head -5
+ipa dnskey-find ipa1.example.com 2>/dev/null | head -5
 
 # Verify DNSSEC validation
-dig +dnssec ipa1.ipa.example.com @localhost | grep -E "RRSIG|AD flag"
+dig +dnssec ipa1.example.com @localhost | grep -E "RRSIG|AD flag"
 
 # Check key rollover status
-ipa dnsseckey-find ipa.example.com 2>/dev/null
+ipa dnsseckey-find ipa1.example.com 2>/dev/null
 
 # OpenDNSSEC daemon
 sudo systemctl status ods-enforcerd ods-signerd
@@ -581,14 +585,14 @@ sudo journalctl -u ods-enforcerd -u ods-signerd --since "1 hour ago"
 ```bash
 # Common failure: DNS not resolving IPA server
 # Error: "Cannot find IPA master"
-dig +short SRV _ldap._tcp.ipa.example.com   # Must return IPA server
-nslookup ipa1.ipa.example.com
+dig +short SRV _ldap._tcp.example.com   # Must return IPA server
+nslookup ipa1.example.com
 
 # Fix: specify server explicitly
 sudo ipa-client-install \
-    --server=ipa1.ipa.example.com \
-    --domain=ipa.example.com \
-    --realm=IPA.EXAMPLE.COM \
+    --server=ipa1.example.com \
+    --domain=ipa1.example.com \
+    --realm=EXAMPLE.COM \
     --principal=admin \
     --password='AdminPassword123!'
 
@@ -598,7 +602,7 @@ sudo chronyc makestep
 
 # Common failure: Host already enrolled
 # Error: "Host already enrolled in an IPA domain"
-# Fix: unenroll first or use --force
+# Fix: unenroll first (⚠️ irreversible — removes client config) or use --force
 sudo ipa-client-install --uninstall
 sudo ipa-client-install ...
 ```
@@ -622,26 +626,26 @@ sudo sss_cache -E
 sudo systemctl restart sssd
 
 # Step 4: Check SSSD domain log
-sudo tail -50 /var/log/sssd/sssd_ipa.example.com.log
+sudo tail -50 /var/log/sssd/sssd_example.com.log
 
 # Step 5: Enable debug and retry
 sudo sss_debuglevel --all 9
 sudo systemctl restart sssd
 id jsmith
-sudo tail -100 /var/log/sssd/sssd_ipa.example.com.log
+sudo tail -100 /var/log/sssd/sssd_example.com.log
 ```
 
 ### 8.3 SSSD Offline Mode Issues
 
 ```bash
 # SSSD offline: IPA server unreachable
-sudo sssctl domain-status ipa.example.com
+sudo sssctl domain-status ipa1.example.com
 
 # Check what servers SSSD knows about
-sudo sssctl server-list ipa.example.com
+sudo sssctl server-list ipa1.example.com
 
 # Force online re-check
-sudo sssctl domain-status ipa.example.com --active-server
+sudo sssctl domain-status ipa1.example.com --active-server
 
 # Manually force server discovery
 sudo sss_cache -E
@@ -680,7 +684,7 @@ sudo tail -50 /var/log/secure | grep -E "sshd|pam_sss|pam_unix"
 # Test HBAC rule
 ipa hbactest \
     --user=jsmith \
-    --host=client1.ipa.example.com \
+    --host=client1.example.com \
     --service=sshd
 ```
 
@@ -737,7 +741,7 @@ sudo ldapsearch -x -H ldap://localhost \
 # still functional for full re-init when topology API is insufficient):
 # From the TARGET replica:
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Alternatively, use the 389-DS nsds5replicaEnabled toggle to trigger re-init:
 # sudo ldapmodify -x -H ldap://localhost -D "cn=Directory Manager" -W <<'EOF'
@@ -752,7 +756,7 @@ sudo ipa-replica-manage -p 'DM_Password' re-initialize \
 
 # Force sync (triggers an immediate replication cycle):
 sudo ipa-replica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Monitor progress
 sudo ldapsearch -x -H ldap://localhost \
@@ -771,8 +775,8 @@ ipa topologysuffix-verify ca
 
 # If disconnected: add segments to connect isolated replicas
 ipa topologysegment-add domain \
-    --leftnode=ipa-isolated.ipa.example.com \
-    --rightnode=ipa1.ipa.example.com \
+    --leftnode=ipa-isolated.example.com \
+    --rightnode=ipa1.example.com \
     --direction=both
 ```
 
@@ -853,11 +857,11 @@ sudo tail -30 /var/log/httpd/ssl_error_log
 # 4. mod_ssl misconfiguration (mod_nss was removed in RHEL 10; IPA uses mod_ssl)
 
 # Test HTTP redirect
-curl -v http://ipa1.ipa.example.com/
+curl -v http://ipa1.example.com/
 # Should redirect to HTTPS
 
 # Test HTTPS
-curl -k https://ipa1.ipa.example.com/ipa/ui/ | head -20
+curl -k https://ipa1.example.com/ipa/ui/ | head -20
 ```
 
 ### 11.2 API / CLI Errors
@@ -896,7 +900,7 @@ sudo systemctl status pki-tomcatd@pki-tomcat.service
 sudo tail -30 /var/log/pki/pki-tomcat/ca/system
 
 # Test CA health
-curl -sk https://ipa1.ipa.example.com:8443/ca/admin/ca/getStatus | \
+curl -sk https://ipa1.example.com:8443/ca/admin/ca/getStatus | \
     python3 -m json.tool 2>/dev/null || \
     echo "CA not responding — check pki-tomcatd"
 ```
@@ -1021,7 +1025,7 @@ kinit admin
 # Note the exact error message
 
 # Check KDC is responding
-nc -zv ipa1.ipa.example.com 88 && echo "KDC port open"
+nc -zv ipa1.example.com 88 && echo "KDC port open"
 
 # Check clock
 timedatectl status
@@ -1036,12 +1040,12 @@ kinit admin
 
 ```bash
 # Test LDAP connectivity
-ldapsearch -x -H ldap://ipa1.ipa.example.com \
+ldapsearch -x -H ldap://ipa1.example.com \
     -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid 2>&1
 
 # Test with auth
-ldapsearch -x -H ldaps://ipa1.ipa.example.com \
+ldapsearch -x -H ldaps://ipa1.example.com \
     -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
     -W -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid 2>&1 | head -10
@@ -1077,14 +1081,14 @@ id jsmith
 getent passwd jsmith
 
 # Test HBAC
-kinit admin@IPA.EXAMPLE.COM
+kinit admin@EXAMPLE.COM
 ipa hbactest \
     --user=jsmith \
     --host=$(hostname) \
     --service=sshd
 
 # Review SSSD log
-sudo tail -50 /var/log/sssd/sssd_ipa.example.com.log | \
+sudo tail -50 /var/log/sssd/sssd_example.com.log | \
     grep -iE "error|fail|warn"
 ```
 
@@ -1099,7 +1103,7 @@ sudo ipa-healthcheck --all --output-type human 2>&1 | \
 # Target: 0 ERRORs, minimal WARNINGs
 
 # Confirm user login works
-ssh -v jsmith@client1.ipa.example.com 2>&1 | \
+ssh -v jsmith@client1.example.com 2>&1 | \
     grep -E "Authenticated|denied|Permission|GSSAPI"
 
 # Document findings

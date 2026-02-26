@@ -1,6 +1,10 @@
 # CS-08 — Troubleshooting Cheatsheet
 > Quick-reference diagnostics for FreeIPA on RHEL 10: service health, Kerberos, replication, certificates, DNS, SSSD, and AD trust.
 
+> 🔁 **See also:** [Module 14 — Troubleshooting](../14_troubleshooting.md)
+
+---
+
 ## Table of Contents
 
 - [1. First Responder Checklist](#1-first-responder-checklist)
@@ -39,7 +43,7 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y GSSAPI -b "dc=example,dc=com" "(uid=admin)" dn 2>&1 | head -20
 
 # 5. DNS self-resolution
-dig +short ipa.example.com A
+dig +short ipa1.example.com A
 dig +short _kerberos._tcp.example.com SRV
 
 # 6. Certificate expiry scan
@@ -180,7 +184,7 @@ ls -la /tmp/krb5cc_$(id -u)
 
 # Test specific service ticket
 kvno host/client.example.com
-kvno HTTP/ipa.example.com
+kvno HTTP/ipa1.example.com
 ```
 
 ### 4.2 KDC Configuration
@@ -195,7 +199,7 @@ kadmin.local -q "getprincs" | head -20
 
 # Check a principal
 kadmin.local -q "getprinc admin"
-kadmin.local -q "getprinc host/ipa.example.com"
+kadmin.local -q "getprinc host/ipa1.example.com"
 
 # Check policy
 kadmin.local -q "getpol default"
@@ -266,11 +270,11 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=config" "(cn=config)" dn 2>/dev/null | head -5
 
 # LDAP via network with GSSAPI (from client)
-ldapsearch -H ldap://ipa.example.com -Y GSSAPI \
+ldapsearch -H ldap://ipa1.example.com -Y GSSAPI \
   -b "dc=example,dc=com" "(uid=admin)" dn
 
 # LDAPS
-ldapsearch -H ldaps://ipa.example.com:636 \
+ldapsearch -H ldaps://ipa1.example.com:636 \
   -D "cn=Directory Manager" -W \
   -b "dc=example,dc=com" "(uid=admin)" dn
 ```
@@ -383,7 +387,7 @@ tail -100 /var/log/pki/pki-tomcat/ca/debug.$(date +%Y-%m-%d).log 2>/dev/null || 
   ls /var/log/pki/pki-tomcat/ca/debug.*.log | sort | tail -1 | xargs tail -100
 
 # Check CA subsystem status via API
-curl -sk https://ipa.example.com:8443/ca/admin/ca/getStatus | python3 -m json.tool
+curl -sk https://ipa1.example.com:8443/ca/admin/ca/getStatus | python3 -m json.tool
 
 # List recent cert requests
 ipa cert-find --sizelimit=10 --timelimit=10
@@ -424,8 +428,8 @@ ipa config-show | grep -i crl
 
 ```bash
 # Forward lookup
-dig ipa.example.com A
-dig ipa.example.com AAAA
+dig ipa1.example.com A
+dig ipa1.example.com AAAA
 
 # Reverse lookup
 dig -x 192.168.1.10
@@ -502,7 +506,7 @@ ipa dnsrecord-find example.com
 ipa dnsrecord-show example.com ipa
 
 # Validate DNS from IPA perspective
-ipa dns-resolve ipa.example.com
+ipa dns-resolve ipa1.example.com
 ```
 
 ---
@@ -616,7 +620,7 @@ ipa-replica-manage list
 ipa-replica-manage list --verbose
 
 # Check replication agreements
-ipa-replica-manage list -p <DM-password> ipa.example.com
+ipa-replica-manage list -p <DM-password> ipa1.example.com
 
 # Show replication status for a replica
 ipa-replica-manage status ipa2.example.com
@@ -664,14 +668,14 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
 
 ```bash
 # Initialize/force full sync from master to replica
-ipa-replica-manage force-sync --from=ipa.example.com
+ipa-replica-manage force-sync --from=ipa1.example.com
 
 # Re-initialize a replica (destructive — use with care)
-ipa-replica-manage re-initialize --from=ipa.example.com
+ipa-replica-manage re-initialize --from=ipa1.example.com
 
 # For CA replication
-ipa-csreplica-manage force-sync --from=ipa.example.com
-ipa-csreplica-manage re-initialize --from=ipa.example.com
+ipa-csreplica-manage force-sync --from=ipa1.example.com
+ipa-csreplica-manage re-initialize --from=ipa1.example.com
 ```
 
 ### 9.5 Topology API
@@ -749,7 +753,7 @@ dig _ldap._tcp.ad.corp SRV
 
 # Test cross-realm Kerberos
 kinit jdoe@AD.CORP
-kvno host/ipa.example.com@EXAMPLE.COM
+kvno host/ipa1.example.com@EXAMPLE.COM
 ```
 
 ### 10.5 Trust Re-establishment
@@ -772,15 +776,15 @@ sss_cache -E
 
 ```bash
 # Basic API ping
-curl -sk https://ipa.example.com/ipa/json \
+curl -sk https://ipa1.example.com/ipa/json \
   -H "Content-Type: application/json" \
-  -H "Referer: https://ipa.example.com/ipa" \
+  -H "Referer: https://ipa1.example.com/ipa" \
   -d '{"method":"ping","params":[[],{}]}' | python3 -m json.tool
 
 # With Kerberos auth (kinit first)
-curl -sk --negotiate -u : https://ipa.example.com/ipa/json \
+curl -sk --negotiate -u : https://ipa1.example.com/ipa/json \
   -H "Content-Type: application/json" \
-  -H "Referer: https://ipa.example.com/ipa" \
+  -H "Referer: https://ipa1.example.com/ipa" \
   -d '{"method":"user_find","params":[[],{"all":false,"sizelimit":5}]}' \
   | python3 -m json.tool
 ```
@@ -798,7 +802,7 @@ journalctl -u httpd --since "30 min ago" | grep -i error
 httpd -M 2>/dev/null | grep gss
 
 # SSL certificate used by Apache
-openssl s_client -connect ipa.example.com:443 -servername ipa.example.com \
+openssl s_client -connect ipa1.example.com:443 -servername ipa1.example.com \
   </dev/null 2>/dev/null | openssl x509 -noout -enddate -subject
 ```
 
@@ -807,9 +811,9 @@ openssl s_client -connect ipa.example.com:443 -servername ipa.example.com \
 ```bash
 # Verify IPA session is working
 echo '{"method":"ping","params":[[],{}]}' | \
-  curl -sk --negotiate -u : -X POST https://ipa.example.com/ipa/json \
+  curl -sk --negotiate -u : -X POST https://ipa1.example.com/ipa/json \
   -H "Content-Type: application/json" \
-  -H "Referer: https://ipa.example.com/ipa" \
+  -H "Referer: https://ipa1.example.com/ipa" \
   -d @- | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}))"
 ```
 
@@ -836,16 +840,16 @@ update-crypto-policies --show | xargs -I{} cat /usr/share/crypto-policies/polici
 
 ```bash
 # What cipher was negotiated with IPA LDAP
-openssl s_client -connect ipa.example.com:636 -starttls ldap \
+openssl s_client -connect ipa1.example.com:636 -starttls ldap \
   </dev/null 2>/dev/null | grep -E 'Cipher|Protocol|Server certificate'
 
 # What cipher was negotiated with HTTPS
-openssl s_client -connect ipa.example.com:443 \
+openssl s_client -connect ipa1.example.com:443 \
   </dev/null 2>/dev/null | grep -E 'Cipher|Protocol|Verify'
 
 # Test specific TLS version
-openssl s_client -connect ipa.example.com:443 -tls1_2 </dev/null 2>/dev/null | grep 'Cipher\|Protocol'
-openssl s_client -connect ipa.example.com:443 -tls1_3 </dev/null 2>/dev/null | grep 'Cipher\|Protocol'
+openssl s_client -connect ipa1.example.com:443 -tls1_2 </dev/null 2>/dev/null | grep 'Cipher\|Protocol'
+openssl s_client -connect ipa1.example.com:443 -tls1_3 </dev/null 2>/dev/null | grep 'Cipher\|Protocol'
 ```
 
 ### 12.3 FIPS Mode Checks
@@ -946,7 +950,7 @@ ipa-csreplica-manage del ipa2.example.com --force
 # Clean up DNA range (if replica held a range)
 ipa-replica-manage dnarange-show
 # Manually reassign range if needed
-ipa-replica-manage dnarange-set ipa.example.com 1000-1999
+ipa-replica-manage dnarange-set ipa1.example.com 1000-1999
 ```
 
 ---

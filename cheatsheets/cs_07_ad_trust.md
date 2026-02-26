@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 11 — AD Trust](../11_ad_trust.md)
+
+---
+
 ## Table of Contents
 
 - [Trust Setup](#trust-setup)
@@ -49,7 +53,7 @@ sudo ipa-adtrust-install \
 # Verify Samba/winbind services are up
 sudo systemctl status smb winbind
 sudo testparm -s | grep workgroup
-ipa dnszone-show _msdcs.ipa.example.com
+ipa dnszone-show _msdcs.example.com
 
 # Step 5: Create the trust
 ipa trust-add ad.example.com \
@@ -198,7 +202,7 @@ ipa hbacrule-add-host allow_ad_users_ssh \
 # 4. Test HBAC
 ipa hbactest \
     --user=aduser1@ad.example.com \
-    --host=server1.ipa.example.com \
+    --host=server1.example.com \
     --service=sshd
 
 # Full sudo setup for AD users (same group chain):
@@ -240,7 +244,7 @@ ipa idview-add RestrictedView \
 
 # Apply view to specific hosts
 ipa idview-apply RestrictedView \
-    --hosts=dmz1.ipa.example.com
+    --hosts=dmz1.example.com
 
 # Add override in custom view
 ipa idoverrideuser-add RestrictedView \
@@ -253,7 +257,7 @@ ipa idview-find
 
 # Remove view from host
 ipa idview-unapply RestrictedView \
-    --hosts=dmz1.ipa.example.com
+    --hosts=dmz1.example.com
 ```
 
 ---
@@ -325,7 +329,7 @@ sudo wbinfo --ping-dc --domain=ad.example.com
 
 # Access denied after login
 ipa hbactest --user=aduser1@ad.example.com \
-    --host=server1.ipa.example.com --service=sshd
+    --host=server1.example.com --service=sshd
 # Check external group chain:
 sudo wbinfo --name-to-sid='AD\linux_users'
 ipa group-show ext_ad_ssh --all | grep member

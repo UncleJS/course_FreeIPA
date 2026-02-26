@@ -55,13 +55,13 @@ sequenceDiagram
     participant IPA as IPA KDC
     participant AD as AD KDC
 
-    U->>C: ssh aduser@ipahost.ipa.example.com
+    U->>C: ssh aduser@ipahost.example.com
     C->>IPA: TGS-REQ for host/ipahost (cross-realm)
     IPA->>IPA: Look up trust — forward referral
     IPA-->>C: Referral → AD.EXAMPLE.COM
     C->>AD: AS-REQ (get TGT for aduser)
     AD-->>C: TGT (AD.EXAMPLE.COM realm)
-    C->>AD: TGS-REQ for krbtgt/IPA.EXAMPLE.COM@AD.EXAMPLE.COM
+    C->>AD: TGS-REQ for krbtgt/EXAMPLE.COM@AD.EXAMPLE.COM
     AD-->>C: Cross-realm TGT
     C->>IPA: TGS-REQ for host/ipahost using cross-realm TGT
     IPA->>IPA: Validate PAC, map SID→UID, apply HBAC
@@ -80,9 +80,9 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    subgraph IPA Forest ["IPA Forest (ipa.example.com)"]
-        IPA1[IPA Master<br/>ipa1.ipa.example.com]
-        IPA2[IPA Replica<br/>ipa2.ipa.example.com]
+    subgraph IPA Forest ["IPA Forest (example.com)"]
+        IPA1[IPA Master<br/>ipa1.example.com]
+        IPA2[IPA Replica<br/>ipa2.example.com]
         C1[IPA Client]
         C2[IPA Client]
         IPA1 <-->|LDAP replication| IPA2
@@ -133,7 +133,7 @@ graph LR
 When `ipa-adtrust-install` runs, IPA creates:
 
 - A **Samba machine account** in IPA LDAP (`cn=adtrust agents`)
-- An **inter-realm trust key** (`krbtgt/AD.EXAMPLE.COM@IPA.EXAMPLE.COM`)
+- An **inter-realm trust key** (`krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM`)
 - An **ID range** entry mapping AD SIDs to Linux UIDs
 
 ```mermaid
@@ -220,7 +220,7 @@ dig +short SRV _kerberos._tcp.ad.example.com @192.168.10.10
 ```
 # In AD DNS (PowerShell on AD DC):
 Add-DnsServerConditionalForwarderZone `
-    -Name "ipa.example.com" `
+    -Name "example.com" `
     -MasterServers 192.168.1.10, 192.168.1.11
 ```
 
@@ -268,8 +268,8 @@ dig +short SRV _gc._tcp.ad.example.com
 nslookup dc1.ad.example.com
 
 # From AD DC (PowerShell) — resolve IPA services
-Resolve-DnsName -Name "_ldap._tcp.ipa.example.com" -Type SRV
-Resolve-DnsName -Name "_kerberos._tcp.ipa.example.com" -Type SRV
+Resolve-DnsName -Name "_ldap._tcp.example.com" -Type SRV
+Resolve-DnsName -Name "_kerberos._tcp.example.com" -Type SRV
 ```
 
 ### 4.2 IPA DNS Zone Configuration
@@ -277,14 +277,14 @@ Resolve-DnsName -Name "_kerberos._tcp.ipa.example.com" -Type SRV
 ```bash
 # Ensure IPA DNS has correct SRV records for its own realm
 # Note: dnsrecord-find has no --type filter; list all and grep for SRV records
-ipa dnsrecord-find ipa.example.com | grep -A2 "kerberos"
+ipa dnsrecord-find example.com | grep -A2 "kerberos"
 
 # Add missing SRV records if needed
-ipa dnsrecord-add ipa.example.com _kerberos._tcp \
-    --srv-rec="0 100 88 ipa1.ipa.example.com."
+ipa dnsrecord-add example.com _kerberos._tcp \
+    --srv-rec="0 100 88 ipa1.example.com."
 
 # Check _msdcs zone (required for AD compatibility)
-ipa dnszone-show _msdcs.ipa.example.com 2>/dev/null || \
+ipa dnszone-show _msdcs.example.com 2>/dev/null || \
     echo "WARNING: _msdcs zone missing — run ipa-adtrust-install"
 ```
 
@@ -293,11 +293,11 @@ ipa dnszone-show _msdcs.ipa.example.com 2>/dev/null || \
 ```mermaid
 graph TD
     subgraph DNS Resolution Flow
-        IPA_DNS[IPA DNS<br/>192.168.1.1<br/>ipa.example.com]
+        IPA_DNS[IPA DNS<br/>192.168.1.1<br/>example.com]
         AD_DNS[AD DNS<br/>192.168.10.10<br/>ad.example.com]
 
         IPA_DNS -->|"Conditional forwarder<br/>ad.example.com → 192.168.10.10"| AD_DNS
-        AD_DNS -->|"Conditional forwarder<br/>ipa.example.com → 192.168.1.1"| IPA_DNS
+        AD_DNS -->|"Conditional forwarder<br/>example.com → 192.168.1.1"| IPA_DNS
 
         IPA_CLIENT[IPA Client<br/>resolv.conf → 192.168.1.1]
         AD_CLIENT[AD Client<br/>DNS → 192.168.10.10]
@@ -333,7 +333,7 @@ sudo ipa-adtrust-install \
 **What this does:**
 1. Configures Samba (`smb.conf`) to present IPA as an AD-compatible domain
 2. Starts `winbindd` and `smb` services
-3. Creates `_msdcs.ipa.example.com` DNS zone
+3. Creates `_msdcs.example.com` DNS zone
 4. Adds `cifs/` and `host/` service principals to KDC
 5. Assigns SIDs to all existing users/groups
 
@@ -347,10 +347,10 @@ sudo systemctl status smb winbind
 sudo testparm -s /etc/samba/smb.conf
 
 # Verify SPN was created
-ipa service-show cifs/ipa1.ipa.example.com
+ipa service-show cifs/ipa1.example.com
 
 # Check _msdcs DNS zone
-ipa dnszone-show _msdcs.ipa.example.com
+ipa dnszone-show _msdcs.example.com
 ```
 
 ### 5.3 Create the Trust
@@ -524,13 +524,13 @@ On IPA clients, SSSD is configured automatically by `ipa-client-install`. The `i
 
 ```ini
 # /etc/sssd/sssd.conf (auto-generated — do NOT hand-edit)
-[domain/ipa.example.com]
+[domain/example.com]
 id_provider = ipa
-ipa_domain = ipa.example.com
+ipa_domain = example.com
 ipa_server = _srv_
 
 # The AD sub-domain is discovered automatically:
-# [domain/ipa.example.com/ad.example.com]
+# [domain/example.com/ad.example.com]
 # id_provider = ad   (implicit)
 ```
 
@@ -599,7 +599,7 @@ graph TD
 ipa idview-add DMZView --desc="Restricted shell for DMZ hosts"
 
 # Apply to specific hosts
-ipa idview-apply DMZView --hosts=dmzhost1.ipa.example.com
+ipa idview-apply DMZView --hosts=dmzhost1.example.com
 
 # Add override in that view
 ipa idoverrideuser-add DMZView aduser1@ad.example.com \
@@ -635,7 +635,7 @@ graph LR
     EG["IPA External Group<br/>ext_linux_admins"]
     IG["IPA POSIX Group<br/>ipa_linux_admins"]
     HBAC["HBAC Rule<br/>allow_ssh_admins"]
-    HOST["IPA Host<br/>server1.ipa.example.com"]
+    HOST["IPA Host<br/>server1.example.com"]
 
     ADU -->|member of| ADG
     ADG -->|external member of| EG
@@ -672,11 +672,11 @@ ipa hbacrule-add allow_ad_admins_ssh \
 ipa hbacrule-add-user allow_ad_admins_ssh \
     --groups=ipa_linux_admins
 ipa hbacrule-add-host allow_ad_admins_ssh \
-    --hosts=server1.ipa.example.com
+    --hosts=server1.example.com
 
 # Step 5: Test HBAC
 ipa hbactest --user=aduser1@ad.example.com \
-             --host=server1.ipa.example.com \
+             --host=server1.example.com \
              --service=sshd
 ```
 
@@ -864,8 +864,8 @@ dig +short SRV _ldap._tcp.dc._msdcs.ad.example.com
 # If empty: fix DNS forwarder zone
 
 # Verify IPA SRV records are visible from AD side
-dig +short SRV _ldap._tcp.ipa.example.com @192.168.1.1
-dig +short SRV _kerberos._tcp.ipa.example.com @192.168.1.1
+dig +short SRV _ldap._tcp.example.com @192.168.1.1
+dig +short SRV _kerberos._tcp.example.com @192.168.1.1
 ```
 
 ### 11.3 Samba/Winbind Troubleshooting
@@ -897,12 +897,12 @@ sudo sss_debuglevel --all 9
 
 # Or edit /etc/sssd/sssd.conf and set:
 # debug_level = 9
-# in [domain/ipa.example.com] section, then restart
+# in [domain/example.com] section, then restart
 
 sudo systemctl restart sssd
 
 # Tail SSSD logs
-sudo tail -f /var/log/sssd/sssd_ipa.example.com.log
+sudo tail -f /var/log/sssd/sssd_example.com.log
 sudo tail -f /var/log/sssd/sssd_ad.example.com.log
 
 # Force cache refresh
@@ -922,13 +922,13 @@ KRB5_TRACE=/dev/stderr kinit aduser1@AD.EXAMPLE.COM
 klist -v
 
 # Verify inter-realm keys exist
-sudo kadmin.local -q "getprinc krbtgt/AD.EXAMPLE.COM@IPA.EXAMPLE.COM"
+sudo kadmin.local -q "getprinc krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM"
 
 # Check KDC logs for cross-realm errors
 sudo journalctl -u krb5kdc --since "1 hour ago" | grep -i "ad.example"
 
 # Test PAC validation
-kvno -S host server1.ipa.example.com
+kvno -S host server1.example.com
 ```
 
 ### 11.6 Common Errors and Fixes
@@ -950,7 +950,7 @@ kvno -S host server1.ipa.example.com
 
 ## 12. Lab — Build and Verify an AD Trust
 
-> **Environment:** One IPA master (`ipa1.ipa.example.com`), one AD DC (`dc1.ad.example.com`), one IPA client (`client1.ipa.example.com`).
+> **Environment:** One IPA master (`ipa1.example.com`), one AD DC (`dc1.ad.example.com`), one IPA client (`client1.example.com`).
 
 ### Lab 12.1 — Install AD Trust Packages
 
@@ -989,7 +989,7 @@ sudo systemctl status smb winbind
 sudo testparm -s | grep workgroup
 
 # Verify _msdcs zone
-ipa dnszone-show _msdcs.ipa.example.com
+ipa dnszone-show _msdcs.example.com
 ```
 
 ### Lab 12.4 — Open Firewall Ports
@@ -1004,7 +1004,7 @@ sudo firewall-cmd --list-services | grep trust
 
 ```bash
 # On AD DC first (PowerShell) — add conditional forwarder back to IPA
-# Add-DnsServerConditionalForwarderZone -Name "ipa.example.com" -MasterServers 192.168.1.10
+# Add-DnsServerConditionalForwarderZone -Name "example.com" -MasterServers 192.168.1.10
 
 # On IPA master:
 kinit admin
@@ -1049,12 +1049,12 @@ ipa hbacrule-add allow_ad_ssh \
     --servicecat=all
 ipa hbacrule-add-user allow_ad_ssh --groups=ipa_ad_users
 ipa hbacrule-add-host allow_ad_ssh \
-    --hosts=client1.ipa.example.com
+    --hosts=client1.example.com
 
 # Test HBAC
 ipa hbactest \
     --user=testaduser@ad.example.com \
-    --host=client1.ipa.example.com \
+    --host=client1.example.com \
     --service=sshd
 ```
 
@@ -1062,7 +1062,7 @@ ipa hbactest \
 
 ```bash
 # From an external host, SSH as AD user
-ssh testaduser@ad.example.com@client1.ipa.example.com
+ssh testaduser@ad.example.com@client1.example.com
 
 # Verify Kerberos ticket
 klist

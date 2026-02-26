@@ -184,7 +184,7 @@ ipa hbactest \
 # Show which rules matched
 ipa hbactest \
   --user=admin \
-  --host=ipa.example.com \
+  --host=ipa1.example.com \
   --service=sshd \
   --rules=allow_all,allow-admins-everywhere
 ```
@@ -395,7 +395,7 @@ ipa hbacrule-add-user allow-admins-all --groups=admins
 ipa hbactest --user=alice --host=web01.example.com --service=sshd
 ipa hbactest --user=alice --host=db01.example.com --service=sshd   # should deny
 ipa hbactest --user=bob --host=db01.example.com --service=sshd     # should allow
-ipa hbactest --user=admin --host=ipa.example.com --service=sshd    # should allow
+ipa hbactest --user=admin --host=ipa1.example.com --service=sshd    # should allow
 
 # Only disable allow_all after tests pass
 ipa hbacrule-disable allow_all

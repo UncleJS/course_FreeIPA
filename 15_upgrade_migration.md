@@ -76,7 +76,7 @@ sudo getcert list | grep -E "expires:|status:"
 
 # 4. Verify all replicas are reachable
 ipa server-find | grep "Server name"
-for server in ipa1.ipa.example.com ipa2.ipa.example.com; do
+for server in ipa1.example.com ipa2.example.com; do
     echo -n "$server: "
     nc -zv $server 389 2>&1 | grep -E "open|refused"
 done
@@ -294,7 +294,7 @@ graph TD
 ## === ON EACH REPLICA (one at a time) ===
 
 # --- PRE-UPGRADE (per replica) ---
-SERVER=ipa2.ipa.example.com
+SERVER=ipa2.example.com
 
 # 1. Verify replication is healthy
 ipa topologysuffix-verify dc=ipa,dc=example,dc=com
@@ -317,7 +317,7 @@ sudo ipactl status
 sudo ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
 
 # 7. Test authentication via this replica specifically
-KRB5_CONFIG=/etc/krb5.conf kinit admin@IPA.EXAMPLE.COM
+KRB5_CONFIG=/etc/krb5.conf kinit admin@EXAMPLE.COM
 klist
 
 # --- VERIFY REPLICATION AFTER UPGRADE ---
@@ -327,7 +327,7 @@ ipa user-add postupgrade-test-$(hostname -s) \
     --first=Post --last=Upgrade
 # Check it appears on other replicas
 sleep 10
-ssh ipa1.ipa.example.com \
+ssh ipa1.example.com \
     "ipa user-show postupgrade-test-$(hostname -s)"
 
 # 9. Clean up test user
@@ -365,13 +365,13 @@ ipa topologysuffix-verify ca
 
 # 4. CA issuing certificates
 ipa cert-request \
-    --principal=host/test-post-upgrade.ipa.example.com \
+    --principal=host/test-post-upgrade.example.com \
     /dev/stdin < /dev/null 2>/dev/null || \
     echo "Note: need a valid CSR — check CA is responding"
 
 # 5. DNS resolving
-dig +short ipa1.ipa.example.com
-dig +short SRV _kerberos._tcp.ipa.example.com
+dig +short ipa1.example.com
+dig +short SRV _kerberos._tcp.example.com
 
 # 6. Kerberos authentication
 kinit admin
@@ -382,7 +382,7 @@ ipa user-find | tail -3
 ipa host-find | tail -3
 
 # 8. Web UI accessible
-curl -sk https://ipa1.ipa.example.com/ipa/ui/ | \
+curl -sk https://ipa1.example.com/ipa/ui/ | \
     grep -c "FreeIPA" && echo "Web UI: OK"
 
 # 9. Version check
@@ -394,7 +394,7 @@ rpm -q ipa-server
 
 ```bash
 # Confirm all replicas are at the same version
-for server in ipa1.ipa.example.com ipa2.ipa.example.com; do
+for server in ipa1.example.com ipa2.example.com; do
     echo -n "$server: "
     ssh $server "rpm -q ipa-server --qf '%{VERSION}-%{RELEASE}\n'"
 done
@@ -476,7 +476,7 @@ OpenLDAP password hashes (SSHA, MD5) are **not compatible** with Kerberos. Migra
 # Enable migration mode:
 ipa config-mod --enable-migration-mode=TRUE
 
-# Users visit https://ipa1.ipa.example.com/ipa/migration/
+# Users visit https://ipa1.example.com/ipa/migration/
 # They enter old LDAP password → IPA creates Kerberos keys
 
 # After migration period, disable migration mode:
@@ -498,7 +498,7 @@ sequenceDiagram
     WEB->>IPA: Create Kerberos principal with new password
     IPA-->>WEB: Principal created
     WEB-->>U: "Migration complete — use Kerberos login"
-    U->>IPA: kinit username@IPA.EXAMPLE.COM
+    U->>IPA: kinit username@EXAMPLE.COM
     IPA-->>U: TGT issued ✓
 ```
 
@@ -573,8 +573,8 @@ done < /tmp/nis-group.txt
 ipa netgroup-add webservers \
     --desc="Web servers netgroup (migrated from NIS)"
 ipa netgroup-add-member webservers \
-    --hosts=web1.ipa.example.com \
-    --hosts=web2.ipa.example.com
+    --hosts=web1.example.com \
+    --hosts=web2.example.com
 
 # Migrate automount maps
 ipa automountlocation-add main
@@ -584,7 +584,7 @@ ipa automountmap-add main auto.home
 # Import auto.home entries
 ipa automountkey-add main auto.home \
     --key='/home' \
-    --info='nfs.ipa.example.com:/exports/home/&'
+    --info='nfs.example.com:/exports/home/&'
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -683,7 +683,7 @@ PYEOF
 # Re-enroll each client from old domain to new domain
 # (run on each client host)
 
-# Unenroll from old domain
+# Unenroll from old domain (⚠️ irreversible — removes client IPA config)
 sudo ipa-client-install --uninstall
 
 # Enroll in new domain
@@ -716,7 +716,7 @@ kinit admin@NEW.COMPANY.COM
 ### 10.2 Bulk Import from AD via LDAP
 
 ```bash
-kinit admin@IPA.EXAMPLE.COM
+kinit admin@EXAMPLE.COM
 
 # Migrate users from AD (requires AD LDAP read access)
 ipa migrate-ds \
@@ -767,7 +767,7 @@ for u in data['result']['result']:
 
 # Option 2: Self-service portal
 ipa config-mod --enable-migration-mode=TRUE
-# Users visit https://ipa1.ipa.example.com/ipa/migration/
+# Users visit https://ipa1.example.com/ipa/migration/
 # and enter their AD password
 
 # IPA will:
@@ -849,7 +849,7 @@ sudo ipa-restore \
 # After restore on single master — re-initialize all replicas
 # (ipa-replica-manage re-initialize is still the correct low-level tool for this)
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -911,7 +911,7 @@ kinit admin
 ipa user-add lab-repl-test --first=Lab --last=ReplTest
 
 # Verify it replicated to ipa1 (not yet upgraded)
-ssh ipa1 "kinit -kt /etc/krb5.keytab host/ipa1.ipa.example.com; ipa user-show lab-repl-test"
+ssh ipa1 "kinit -kt /etc/krb5.keytab host/ipa1.example.com; ipa user-show lab-repl-test"
 
 # Clean up
 ipa user-del lab-repl-test

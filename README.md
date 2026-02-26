@@ -29,6 +29,30 @@
 - `/etc/hosts` contains `<IP>  ipa.example.com  ipa`
 - NTP/Chrony synchronised (clock skew < 5 min)
 
+### Lab Environment Naming Convention
+
+All examples in this course use the following canonical hostnames and IPs. Adjust to match your actual environment.
+
+| Role | Hostname | IP Address | Notes |
+|------|----------|------------|-------|
+| IPA Server 1 (primary) | `ipa1.example.com` | 192.168.1.10 | First IPA master |
+| IPA Server 2 (replica) | `ipa2.example.com` | 192.168.1.11 | Replica / CA replica |
+| Optional VIP / CNAME | `ipa.example.com` | → `ipa1.example.com` | Stable alias used in single-server install examples |
+| IPA Client (generic) | `client01.example.com` | 192.168.1.20 | Linux host enrolled in IPA |
+| Web server (example) | `web01.example.com` | 192.168.1.21 | App host |
+| Database (example) | `db01.example.com` | 192.168.1.22 | DB host |
+| AD Domain Controller | `dc1.ad.example.com` | 192.168.10.10 | AD DC for trust (Module 11) |
+| AD DC 2 (secondary) | `dc2.ad.example.com` | 192.168.10.11 | Optional second AD DC |
+
+| Setting | Value |
+|---------|-------|
+| IPA DNS domain | `example.com` |
+| IPA Kerberos realm | `EXAMPLE.COM` |
+| AD DNS domain | `ad.example.com` |
+| AD Kerberos realm | `AD.EXAMPLE.COM` |
+
+> 📝 **Kerberos realms are always UPPERCASE; DNS domains are always lowercase.**
+
 ### Firewall Ports (IPA Server)
 
 | Port | Protocol | Service |

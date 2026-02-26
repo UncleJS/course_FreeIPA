@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 03 — Identity: Users & Groups](../03_identity_users_groups.md) · [Module 05 — Host Enrollment & SSSD](../05_host_enrollment_sssd.md) · [Module 07 — Sudo & HBAC](../07_sudo_hbac.md)
+
+---
+
 ## Table of Contents
 
 - [Service Management](#service-management)
@@ -63,9 +67,12 @@ ipa user-mod jsmith --title="Senior Engineer"
 ipa user-mod jsmith --shell=/bin/zsh
 ipa user-mod jsmith --email=j.smith@example.com
 
-# Set / reset password
-ipa passwd jsmith                             # interactive
-echo 'NewPass123!' | ipa passwd jsmith       # non-interactive
+# Set / reset password (interactive only — ipa passwd reads from tty)
+ipa passwd jsmith
+# Note: pipe-based reset (echo '...' | ipa passwd) is unreliable across versions.
+# For scripted/non-interactive reset use:
+# ipa user-mod jsmith --setattr=userpassword='{SSHA512}...'  (hashed — use ldapmodify)
+# or generate a temporary password and force reset via: ipa user-mod --setattr=krbPasswordExpiration=19700101000000Z
 
 # Disable / enable account
 ipa user-disable jsmith
@@ -83,7 +90,10 @@ ipa user-del jsmith --preserve
 # Undelete preserved user
 ipa user-undel jsmith
 
-# Set authentication method (password / OTP / password+OTP)
+# Set authentication method
+# password       — password-only auth (default)
+# otp            — OTP-only (token required; password login blocked)
+# password + otp — both required (true 2FA: password AND OTP must both succeed)
 ipa user-mod jsmith --user-auth-type=otp
 ipa user-mod jsmith --user-auth-type=password --user-auth-type=otp
 
@@ -134,44 +144,44 @@ ipa group-del developers
 
 ```bash
 # Add host
-ipa host-add server1.ipa.example.com \
+ipa host-add server1.example.com \
     --ip-address=192.168.1.20 \
     --desc="Production web server"
 
 # Show host
-ipa host-show server1.ipa.example.com
+ipa host-show server1.example.com
 
 # Modify host
-ipa host-mod server1.ipa.example.com --desc="Prod web server v2"
+ipa host-mod server1.example.com --desc="Prod web server v2"
 
 # Add SSH public key to host
-ipa host-mod server1.ipa.example.com \
+ipa host-mod server1.example.com \
     --sshpubkey="ecdsa-sha2-nistp256 AAAA..."
 
 # Add host to host group
 ipa hostgroup-add webservers --desc="Web server hosts"
 ipa hostgroup-add-member webservers \
-    --hosts=server1.ipa.example.com
+    --hosts=server1.example.com
 
 # Enroll client (run on client host)
 sudo ipa-client-install \
-    --server=ipa1.ipa.example.com \
-    --domain=ipa.example.com \
-    --realm=IPA.EXAMPLE.COM \
+    --server=ipa1.example.com \
+    --domain=example.com \
+    --realm=EXAMPLE.COM \
     --principal=admin \
     --password='AdminPassword123!' \
     --mkhomedir
 
-# Unenroll client
+# Unenroll client (⚠️ irreversible — removes client from IPA)
 sudo ipa-client-install --uninstall
 
 # Get host keytab
-ipa-getkeytab -s ipa1.ipa.example.com \
-    -p host/server1.ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
+    -p host/server1.example.com \
     -k /etc/krb5.keytab
 
 # Delete host
-ipa host-del server1.ipa.example.com
+ipa host-del server1.example.com
 ```
 
 ---
@@ -202,7 +212,7 @@ ipa hbacrule-show allow_ssh_devs
 # Test access
 ipa hbactest \
     --user=jsmith \
-    --host=devserver1.ipa.example.com \
+    --host=devserver1.example.com \
     --service=sshd
 
 # Disable/enable rule
@@ -288,31 +298,31 @@ ipa user-show jsmith | grep "Kerberos password expiration"
 
 ```bash
 # Add A record
-ipa dnsrecord-add ipa.example.com server2 \
+ipa dnsrecord-add example.com server2 \
     --a-rec=192.168.1.21
 
 # Add CNAME record
-ipa dnsrecord-add ipa.example.com www \
-    --cname-rec=webserver.ipa.example.com.
+ipa dnsrecord-add example.com www \
+    --cname-rec=webserver.example.com.
 
 # Add PTR record
 ipa dnsrecord-add 1.168.192.in-addr.arpa 21 \
-    --ptr-rec=server2.ipa.example.com.
+    --ptr-rec=server2.example.com.
 
 # Add MX record
-ipa dnsrecord-add ipa.example.com @ \
-    --mx-rec="10 mail.ipa.example.com."
+ipa dnsrecord-add example.com @ \
+    --mx-rec="10 mail.example.com."
 
 # Delete record
-ipa dnsrecord-del ipa.example.com server2 \
+ipa dnsrecord-del example.com server2 \
     --a-rec=192.168.1.21
 
 # Show zone
-ipa dnszone-show ipa.example.com
+ipa dnszone-show example.com
 
 # Find records
-ipa dnsrecord-find ipa.example.com
-ipa dnsrecord-find ipa.example.com --name=server2
+ipa dnsrecord-find example.com
+ipa dnsrecord-find example.com --name=server2
 
 # Add conditional forwarder
 ipa dnsforwardzone-add external.com \
@@ -327,7 +337,7 @@ ipa dnsforwardzone-add external.com \
 ```bash
 # Get ticket
 kinit admin
-kinit jsmith@IPA.EXAMPLE.COM
+kinit jsmith@EXAMPLE.COM
 
 # Get ticket with OTP
 kinit jsmith    # enter password+OTP when prompted
@@ -344,13 +354,13 @@ kdestroy
 kdestroy -A     # destroy all ccaches
 
 # Test specific service ticket
-kvno host/server1.ipa.example.com
+kvno host/server1.example.com
 
 # Check ticket with trace
 KRB5_TRACE=/dev/stderr kinit jsmith 2>&1 | head -30
 
 # Get ticket from keytab (for scripts/automation)
-kinit -kt /etc/krb5.keytab host/server1.ipa.example.com
+kinit -kt /etc/krb5.keytab host/server1.example.com
 ```
 
 ---
@@ -378,7 +388,7 @@ ipa cert-find --revocation-reason=0   # find unrevoked certs
 ipa cert-find --validnotafter-from=20260101000000Z
 
 # Find services
-ipa service-find host/server1.ipa.example.com
+ipa service-find host/server1.example.com
 ipa service-find --sizelimit=0 | grep "Principal"
 ```
 

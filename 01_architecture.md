@@ -152,7 +152,7 @@ sequenceDiagram
 
     U->>KDC: AS-REQ (kinit admin)
     KDC-->>U: AS-REP (TGT for admin@EXAMPLE.COM)
-    U->>KDC: TGS-REQ (ticket for HTTP/ipa.example.com)
+    U->>KDC: TGS-REQ (ticket for HTTP/ipa1.example.com)
     KDC-->>U: TGS-REP (service ticket)
     U->>API: HTTPS POST /ipa/json\n(Authorization: Negotiate <ticket>)
     API->>API: mod_auth_gssapi validates ticket

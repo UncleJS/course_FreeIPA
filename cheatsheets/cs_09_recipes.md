@@ -1,6 +1,10 @@
 # CS-09 — Operational Recipes
 > 12 step-by-step runbooks for production FreeIPA operations on RHEL 10.
 
+> 🔁 **See also (reference guide — spans all modules):** [Module 02 — Installation](../02_installation.md) · [Module 05 — Host Enrollment](../05_host_enrollment_sssd.md) · [Module 09 — Certificates: Fundamentals](../09_certificate_management_fundamentals.md) · [Module 11 — AD Trust](../11_ad_trust.md) · [Module 12 — Replication](../12_replication_topology.md) · [Module 13 — Security Hardening](../13_security_hardening.md) · [Module 14 — Troubleshooting](../14_troubleshooting.md) · [Module 15 — Upgrade & Migration](../15_upgrade_migration.md)
+
+---
+
 ## Table of Contents
 
 - [R-01 — Install a Production-Ready IPA Master](#r-01--install-a-production-ready-ipa-master)
@@ -161,7 +165,7 @@ firewall-cmd --reload
 ### Step 2 — Add DNS record from master (if not already present)
 
 ```bash
-# On ipa.example.com (master)
+# On ipa1.example.com (master)
 kinit admin
 ipa dnsrecord-add example.com ipa2 --a-rec=192.168.1.11
 ipa dnsrecord-add 1.168.192.in-addr.arpa 11 --ptr-rec=ipa2.example.com.
@@ -212,7 +216,7 @@ ipa-healthcheck --failures-only
 
 ```bash
 # On clients, add replica as fallback server
-# /etc/sssd/sssd.conf: ipa_server = ipa.example.com, ipa2.example.com
+# /etc/sssd/sssd.conf: ipa_server = ipa1.example.com, ipa2.example.com
 ```
 
 ---
@@ -231,7 +235,7 @@ ipa-healthcheck --failures-only
 
 ```bash
 # Verify DNS resolves IPA server
-dig ipa.example.com A
+dig ipa1.example.com A
 dig _kerberos._tcp.example.com SRV
 
 # Verify time sync
@@ -253,7 +257,7 @@ dnf install -y ipa-client
 ipa-client-install \
   --domain=example.com \
   --realm=EXAMPLE.COM \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --mkhomedir \
   --enable-dns-updates
 
@@ -261,7 +265,7 @@ ipa-client-install \
 ipa-client-install \
   --domain=example.com \
   --realm=EXAMPLE.COM \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --principal=admin \
   --password="<admin-password>" \
   --mkhomedir \
@@ -283,7 +287,7 @@ ipa-client-install \
   --hostname=client1.example.com \
   --domain=example.com \
   --realm=EXAMPLE.COM \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --password="<OTP>" \
   --mkhomedir \
   --enable-dns-updates \
@@ -493,7 +497,7 @@ getent group "domain users@ad.corp"
 
 # Kerberos cross-realm
 kinit jdoe@AD.CORP
-kvno host/ipa.example.com
+kvno host/ipa1.example.com
 ```
 
 ### Step 7 — Configure HBAC / sudo for AD users (optional)
@@ -809,7 +813,7 @@ ipa topologysegment-verify dc=example,dc=com <segment-name>
 
 ```bash
 # On each client pointing to ipa2.example.com, update sssd.conf:
-# ipa_server = ipa.example.com, ipa3.example.com
+# ipa_server = ipa1.example.com, ipa3.example.com
 # (remove ipa2.example.com)
 
 # Restart SSSD on affected clients
@@ -842,6 +846,7 @@ ipa topologysegment-find dc=example,dc=com
 
 ```bash
 # On ipa2.example.com
+# ⚠️ IRREVERSIBLE — take a backup first; -U = unattended, skips confirmation prompt
 ipa-server-install --uninstall -U
 ```
 
@@ -924,13 +929,13 @@ curl -sk https://localhost:8443/ca/admin/ca/getStatus | python3 -m json.tool
 
 ```bash
 # On master (restored server), force-reinitialise replicas
-ipa-replica-manage force-sync --from=ipa.example.com
+ipa-replica-manage force-sync --from=ipa1.example.com
 
 # For CA replication
-ipa-csreplica-manage force-sync --from=ipa.example.com
+ipa-csreplica-manage force-sync --from=ipa1.example.com
 
 # On each replica, check sync
-ipa-replica-manage status ipa.example.com
+ipa-replica-manage status ipa1.example.com
 ```
 
 ### Step 6 — Renew certificates if backup was old
@@ -1047,7 +1052,7 @@ ipa group-show developers
 # Enable migration page
 ipa config-show | grep migration
 
-# Users visit: https://ipa.example.com/ipa/migration
+# Users visit: https://ipa1.example.com/ipa/migration
 # They enter their old LDAP password → IPA creates a Kerberos key
 
 # Alternative: Force password reset for all migrated users
@@ -1139,7 +1144,7 @@ ipa-healthcheck --failures-only
 ### Step 6 — Upgrade the master last
 
 ```bash
-# On ipa.example.com (master)
+# On ipa1.example.com (master)
 dnf upgrade -y ipa-server ipa-client sssd krb5-server pki-ca bind-dyndb-ldap
 
 ipa-server-upgrade
@@ -1217,7 +1222,7 @@ nsslapd-allow-anonymous-access: off
 EOF
 
 # Verify
-ldapsearch -H ldap://ipa.example.com -x -b "" -s base namingContexts 2>&1 | \
+ldapsearch -H ldap://ipa1.example.com -x -b "" -s base namingContexts 2>&1 | \
   grep -i "Insufficient\|success"
 ```
 
@@ -1225,8 +1230,8 @@ ldapsearch -H ldap://ipa.example.com -x -b "" -s base namingContexts 2>&1 | \
 
 ```bash
 # RHEL 10 DEFAULT policy already enforces TLS 1.2+ — verify:
-openssl s_client -connect ipa.example.com:443 -tls1 </dev/null 2>&1 | grep "no peer certificate\|ssl handshake"
-openssl s_client -connect ipa.example.com:636 -tls1 </dev/null 2>&1 | grep "no peer certificate\|ssl handshake"
+openssl s_client -connect ipa1.example.com:443 -tls1 </dev/null 2>&1 | grep "no peer certificate\|ssl handshake"
+openssl s_client -connect ipa1.example.com:636 -tls1 </dev/null 2>&1 | grep "no peer certificate\|ssl handshake"
 # Both should fail (TLS 1.0 rejected)
 ```
 

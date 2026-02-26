@@ -81,7 +81,7 @@ sudo update-crypto-policies --set DEFAULT
 # Apply FUTURE (stricter — test thoroughly before applying to IPA)
 sudo update-crypto-policies --set FUTURE
 
-# Apply FIPS (see Module 3 for full FIPS setup)
+# Apply FIPS (see [Section 3 — FIPS 140-3 Mode](#3-fips-140-3-mode) for full FIPS setup)
 sudo update-crypto-policies --set FIPS
 
 # Never apply LEGACY in an IPA environment
@@ -104,7 +104,7 @@ sudo update-crypto-policies --set DEFAULT:SHA2
 # sudo update-crypto-policies --set DEFAULT:GOST
 
 # Verify OpenSSL respects policy
-openssl s_client -connect ipa1.ipa.example.com:636 2>&1 | \
+openssl s_client -connect ipa1.example.com:636 2>&1 | \
     grep -E "Protocol|Cipher"
 ```
 
@@ -112,15 +112,15 @@ openssl s_client -connect ipa1.ipa.example.com:636 2>&1 | \
 
 ```bash
 # Check HTTPS (Apache)
-openssl s_client -connect ipa1.ipa.example.com:443 </dev/null 2>&1 | \
+openssl s_client -connect ipa1.example.com:443 </dev/null 2>&1 | \
     grep -E "Protocol|Cipher|Server certificate"
 
 # Check LDAPS
-openssl s_client -connect ipa1.ipa.example.com:636 </dev/null 2>&1 | \
+openssl s_client -connect ipa1.example.com:636 </dev/null 2>&1 | \
     grep -E "Protocol|Cipher"
 
 # Check Dogtag CA TLS
-openssl s_client -connect ipa1.ipa.example.com:8443 </dev/null 2>&1 | \
+openssl s_client -connect ipa1.example.com:8443 </dev/null 2>&1 | \
     grep -E "Protocol|Cipher"
 
 # All should show TLSv1.2 or TLSv1.3, AES-256-GCM or CHACHA20-POLY1305
@@ -173,9 +173,9 @@ sudo update-crypto-policies --set FIPS
 sudo ipa-server-install \
     --ds-password='DMPassword123!' \
     --admin-password='AdminPassword123!' \
-    --domain=ipa.example.com \
-    --realm=IPA.EXAMPLE.COM \
-    --hostname=ipa1.ipa.example.com \
+    --domain=example.com \
+    --realm=EXAMPLE.COM \
+    --hostname=ipa1.example.com \
     --ip-address=192.168.1.10 \
     --setup-dns \
     --forwarder=8.8.8.8 \
@@ -188,7 +188,7 @@ sudo ipa-server-install \
 ```bash
 # In FIPS mode, verify only approved enctypes are configured
 sudo kadmin.local -q "listprincs" | head -5
-sudo kadmin.local -q "getprinc krbtgt/IPA.EXAMPLE.COM" | grep "MKey"
+sudo kadmin.local -q "getprinc krbtgt/EXAMPLE.COM" | grep "MKey"
 
 # Check permitted enctypes in krb5.conf
 grep -A10 '\[libdefaults\]' /etc/krb5.conf | grep enctype
@@ -232,7 +232,7 @@ sudo tee -a /etc/krb5.conf.d/ipa-hardened-enctypes.conf << 'EOF'
 EOF
 
 # Verify existing service keys use AES-256
-sudo kadmin.local -q "getprinc host/ipa1.ipa.example.com" | grep "Key:"
+sudo kadmin.local -q "getprinc host/ipa1.example.com" | grep "Key:"
 ```
 
 ### 4.2 Ticket Lifetime Policy
@@ -292,10 +292,10 @@ sudo grep -r "pkinit" /var/kerberos/krb5kdc/kdc.conf
 
 # Disable via kadmin — flag the WELLKNOWN/ANONYMOUS principal as requiring pre-auth
 # (this prevents unauthenticated AS-REQ from obtaining an anonymous TGT):
-sudo kadmin.local -q "modprinc +requires_preauth WELLKNOWN/ANONYMOUS@IPA.EXAMPLE.COM"
+sudo kadmin.local -q "modprinc +requires_preauth WELLKNOWN/ANONYMOUS@EXAMPLE.COM"
 
 # Verify:
-sudo kadmin.local -q "getprinc WELLKNOWN/ANONYMOUS@IPA.EXAMPLE.COM" | \
+sudo kadmin.local -q "getprinc WELLKNOWN/ANONYMOUS@EXAMPLE.COM" | \
     grep "Requires pre-authentication"
 ```
 
@@ -376,7 +376,7 @@ nsslapd-require-secure-binds: on
 EOF
 
 # Verify LDAPS works
-ldapsearch -x -H ldaps://ipa1.ipa.example.com \
+ldapsearch -x -H ldaps://ipa1.example.com \
     -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
     -W -b "dc=ipa,dc=example,dc=com" \
     "(uid=admin)" uid
@@ -408,7 +408,7 @@ sudo systemctl restart dirsrv@IPA-EXAMPLE-COM.service
 
 ```bash
 # List all ACIs in the DIT
-sudo ldapsearch -x -H ldaps://ipa1.ipa.example.com \
+sudo ldapsearch -x -H ldaps://ipa1.example.com \
     -D "cn=Directory Manager" -W \
     -b "dc=ipa,dc=example,dc=com" \
     "(aci=*)" aci | grep "^aci:"
@@ -652,7 +652,7 @@ sudo grep -E "ldap_tls|use_fully|krb5|cache_credentials" \
 
 ```ini
 # Recommended SSSD security settings (verify, don't blindly overwrite)
-[domain/ipa.example.com]
+[domain/example.com]
 id_provider = ipa
 auth_provider = ipa
 chpass_provider = ipa
@@ -1062,7 +1062,7 @@ ipa pwpolicy-show global_policy   # review and update if needed
 
 ## 13. Lab — Apply a Hardening Baseline
 
-> **Environment:** IPA master (`ipa1.ipa.example.com`) with admin access.
+> **Environment:** IPA master (`ipa1.example.com`) with admin access.
 
 ### Lab 13.1 — Verify and Apply Crypto Policy
 
@@ -1074,10 +1074,10 @@ sudo update-crypto-policies --show
 sudo update-crypto-policies --set DEFAULT
 
 # Verify TLS on IPA services
-openssl s_client -connect ipa1.ipa.example.com:443 </dev/null 2>&1 | \
+openssl s_client -connect ipa1.example.com:443 </dev/null 2>&1 | \
     grep -E "Protocol|Cipher"
 
-openssl s_client -connect ipa1.ipa.example.com:636 </dev/null 2>&1 | \
+openssl s_client -connect ipa1.example.com:636 </dev/null 2>&1 | \
     grep -E "Protocol|Cipher"
 ```
 

@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 09 — Certificate Management: Fundamentals](../09_certificate_management_fundamentals.md) · [Module 10 — Certificate Management: Advanced](../10_certificate_management_advanced.md)
+
+---
+
 ## Table of Contents
 
 - [Certmonger Quick Reference](#certmonger-quick-reference)
@@ -62,23 +66,23 @@ sudo getcert list-cas
 ```bash
 # Request cert for an IPA service principal (certmonger)
 sudo getcert request \
-    -K HTTP/webapp.ipa.example.com \
+    -K HTTP/webapp.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
     -w                           # wait for cert
 
 # With SANs
 sudo getcert request \
-    -K HTTP/webapp.ipa.example.com \
+    -K HTTP/webapp.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
-    -D webapp.ipa.example.com \
-    -D webapp-alt.ipa.example.com \
+    -D webapp.example.com \
+    -D webapp-alt.example.com \
     -w
 
 # Request with specific profile
 sudo getcert request \
-    -K host/server1.ipa.example.com \
+    -K host/server1.example.com \
     -T caIPAserviceCert \
     -f /etc/ssl/server.crt \
     -k /etc/ssl/server.key \
@@ -86,7 +90,7 @@ sudo getcert request \
 
 # Request with post-save command (e.g., restart httpd)
 sudo getcert request \
-    -K HTTP/webapp.ipa.example.com \
+    -K HTTP/webapp.example.com \
     -f /etc/httpd/conf/server.crt \
     -k /etc/httpd/conf/server.key \
     -C "systemctl reload httpd" \
@@ -94,7 +98,7 @@ sudo getcert request \
 
 # Request cert for a user principal
 sudo getcert request \
-    -K jsmith@IPA.EXAMPLE.COM \
+    -K jsmith@EXAMPLE.COM \
     -T caIPAuserCert \
     -f /tmp/jsmith.crt \
     -k /tmp/jsmith.key \
@@ -104,11 +108,11 @@ sudo getcert request \
 # Note: RSA-2048 is the minimum; use RSA-3072+ for new keys (required in FIPS mode)
 openssl genrsa -out server.key 3072
 openssl req -new -key server.key \
-    -subj "/CN=server1.ipa.example.com" \
+    -subj "/CN=server1.example.com" \
     -out server.csr
 
 ipa cert-request server.csr \
-    --principal=host/server1.ipa.example.com \
+    --principal=host/server1.example.com \
     --profile-id=caIPAserviceCert
 ```
 
@@ -119,7 +123,7 @@ ipa cert-request server.csr \
 ```bash
 # Request certificate using IPA CLI
 ipa cert-request \
-    --principal=HTTP/webapp.ipa.example.com \
+    --principal=HTTP/webapp.example.com \
     --profile-id=caIPAserviceCert \
     server.csr
 
@@ -129,7 +133,7 @@ ipa cert-show 15 --out=/tmp/cert-15.pem
 
 # Find certificates
 ipa cert-find
-ipa cert-find --subject=webapp.ipa.example.com
+ipa cert-find --subject=webapp.example.com
 ipa cert-find --issuer="CN=Certificate Authority"
 ipa cert-find --revocation-reason=0     # all valid (not revoked)
 ipa cert-find \
@@ -197,20 +201,20 @@ ipa certprofile-del MyCustomProfile
 # Generate RSA key + CSR (use 3072+ for new keys; 2048 is the absolute minimum)
 openssl genrsa -out server.key 3072
 openssl req -new -key server.key \
-    -subj "/CN=server1.ipa.example.com/O=IPA.EXAMPLE.COM" \
+    -subj "/CN=server1.example.com/O=EXAMPLE.COM" \
     -out server.csr
 
 # Generate with SANs (via openssl config)
 openssl req -new -key server.key \
-    -subj "/CN=server1.ipa.example.com" \
+    -subj "/CN=server1.example.com" \
     -reqexts SAN \
-    -config <(cat /etc/pki/tls/openssl.cnf; printf "[SAN]\nsubjectAltName=DNS:server1.ipa.example.com,DNS:server1") \
+    -config <(cat /etc/pki/tls/openssl.cnf; printf "[SAN]\nsubjectAltName=DNS:server1.example.com,DNS:server1") \
     -out server.csr
 
 # Generate ECDSA key + CSR (preferred for new deployments)
 openssl ecparam -name prime256v1 -genkey -noout -out ec.key
 openssl req -new -key ec.key \
-    -subj "/CN=server1.ipa.example.com" \
+    -subj "/CN=server1.example.com" \
     -out ec.csr
 
 # Inspect CSR
@@ -249,11 +253,11 @@ openssl verify -CAfile /etc/ipa/ca.crt server.crt
 
 # Get full chain
 ipa ca-show ipa 2>/dev/null || \
-    openssl s_client -connect ipa1.ipa.example.com:443 </dev/null 2>/dev/null | \
+    openssl s_client -connect ipa1.example.com:443 </dev/null 2>/dev/null | \
     openssl x509 -noout -issuer
 
 # Download CA certificate from IPA
-curl -sk https://ipa1.ipa.example.com/ipa/config/ca.crt \
+curl -sk https://ipa1.example.com/ipa/config/ca.crt \
     -o /tmp/ipa-ca.crt
 openssl x509 -in /tmp/ipa-ca.crt -noout -subject -dates
 ```
@@ -276,7 +280,7 @@ openssl ocsp \
     -resp_text | grep -E "Response Status|Cert Status"
 
 # Download and inspect CRL
-curl -s http://ipa1.ipa.example.com/ipa/crl/MasterCRL.bin \
+curl -s http://ipa1.example.com/ipa/crl/MasterCRL.bin \
     -o /tmp/ipa.crl
 openssl crl -inform DER -in /tmp/ipa.crl \
     -noout -lastupdate -nextupdate -issuer
@@ -305,12 +309,12 @@ sudo tail -30 /var/log/pki/pki-tomcat/ca/system
 sudo tail -30 /var/log/pki/pki-tomcat/ca/transactions
 
 # Dogtag CA URL
-# Agent UI: https://ipa1.ipa.example.com:8443/ca/agent/ca/
-# End-entity UI: https://ipa1.ipa.example.com:8443/ca/ee/ca/
+# Agent UI: https://ipa1.example.com:8443/ca/agent/ca/
+# End-entity UI: https://ipa1.example.com:8443/ca/ee/ca/
 
 # Check CA is responding
-curl -sk https://ipa1.ipa.example.com/ca/ee/ca/ | head -5
-curl -sk https://ipa1.ipa.example.com:8443/ca/admin/ca/getStatus
+curl -sk https://ipa1.example.com/ca/ee/ca/ | head -5
+curl -sk https://ipa1.example.com:8443/ca/admin/ca/getStatus
 
 # Restart Dogtag
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
@@ -333,7 +337,7 @@ ipa ca-find
 
 # Create a sub-CA
 ipa ca-add DevCA \
-    --subject="CN=DevCA,O=IPA.EXAMPLE.COM" \
+    --subject="CN=DevCA,O=EXAMPLE.COM" \
     --desc="Sub-CA for development certificates"
 
 # Show sub-CA
@@ -351,7 +355,7 @@ ipa certprofile-add DevServerCert \
 
 # Request certificate from a specific sub-CA
 ipa cert-request server.csr \
-    --principal=HTTP/devapp.ipa.example.com \
+    --principal=HTTP/devapp.example.com \
     --profile-id=DevServerCert \
     --ca=DevCA
 
@@ -375,11 +379,11 @@ sudo getcert resubmit -i <id>
 
 # CA unreachable
 sudo systemctl status pki-tomcatd@pki-tomcat.service
-curl -sk https://ipa1.ipa.example.com/ca/ee/ca/ | head -3
+curl -sk https://ipa1.example.com/ca/ee/ca/ | head -3
 
 # CA rejected — check profile and principal
 ipa certprofile-show caIPAserviceCert | head -20
-ipa service-show HTTP/webapp.ipa.example.com
+ipa service-show HTTP/webapp.example.com
 
 # Certificate verify fails (TLS)
 openssl verify -CAfile /etc/ipa/ca.crt server.crt

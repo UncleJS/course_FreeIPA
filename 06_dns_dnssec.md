@@ -91,7 +91,7 @@ ipa dnszone-show example.com
 
 # Add a new forward zone
 ipa dnszone-add app.example.com \
-  --name-server=ipa.example.com. \
+  --name-server=ipa1.example.com. \
   --admin-email=dnsadmin@example.com
 
 # Disable a zone (stops answering queries for it)
@@ -109,11 +109,11 @@ ipa dnszone-del app.example.com
 ```bash
 # Add a reverse zone for 192.168.1.0/24
 ipa dnszone-add 1.168.192.in-addr.arpa. \
-  --name-server=ipa.example.com.
+  --name-server=ipa1.example.com.
 
 # Add a reverse zone for IPv6
 ipa dnszone-add 0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa. \
-  --name-server=ipa.example.com.
+  --name-server=ipa1.example.com.
 
 # Auto-create reverse zone during install
 # (handled by --auto-reverse in ipa-server-install)
@@ -213,7 +213,7 @@ ipa dnsrecord-mod example.com web01 --ttl=60 --a-rec=192.168.1.20
 sequenceDiagram
     participant C as DNS Client\n(getent hosts web01.example.com)
     participant R as Resolver\n(client /etc/resolv.conf)
-    participant BIND as BIND 9.18\n(ipa.example.com :53)
+    participant BIND as BIND 9.18\n(ipa1.example.com :53)
     participant DLZ as bind-dyndb-ldap
     participant LDAP as 389-DS
 
@@ -241,7 +241,7 @@ environments).
 sequenceDiagram
     participant C as IPA Client\n(client01.example.com)
     participant KDC as Kerberos KDC
-    participant DNS as BIND\n(ipa.example.com)
+    participant DNS as BIND\n(ipa1.example.com)
     participant LDAP as 389-DS
 
     Note over C: IP address changed\nSSSD/NetworkManager detects change
@@ -249,7 +249,7 @@ sequenceDiagram
     C->>KDC: kinit -k host/client01.example.com
     KDC-->>C: TGT for host principal
 
-    C->>KDC: TGS-REQ for DNS/ipa.example.com
+    C->>KDC: TGS-REQ for DNS/ipa1.example.com
     KDC-->>C: Service ticket for DNS update
 
     C->>DNS: GSS-TSIG authenticated\nDNS UPDATE request\n(update A record for client01)
@@ -268,7 +268,7 @@ ipa-client-install --force-join  # re-runs full enrollment including DNS update
 # Or use nsupdate with GSS-TSIG directly:
 kinit -k -t /etc/krb5.keytab host/client01.example.com
 nsupdate -g << EOF
-server ipa.example.com
+server ipa1.example.com
 update delete client01.example.com. A
 update add client01.example.com. 300 A 192.168.1.50
 send
@@ -329,7 +329,7 @@ ipa dnszone-show ad.example.com | grep forward
 
 ```mermaid
 graph TD
-    A[example.com\nauthoritative: ipa.example.com] --> B{Query for\napp.example.com?}
+    A[example.com\nauthoritative: ipa1.example.com] --> B{Query for\napp.example.com?}
     B -->|NS delegation| C[NS record:\napp.example.com → ns1.app.example.com]
     C --> D[Query forwarded to\nns1.app.example.com]
     D --> E[app-specific\nDNS server answers]
@@ -408,7 +408,7 @@ dig +dnssec example.com A
 dig +dnssec web01.example.com A
 
 # Use delv for full chain-of-trust validation
-delv @ipa.example.com web01.example.com A
+delv @ipa1.example.com web01.example.com A
 # Expected: "fully validated" in output
 
 # Check DNSSEC status for a zone
@@ -420,7 +420,7 @@ ipa dnszone-show example.com --all | grep nsec
 ```mermaid
 sequenceDiagram
     participant R as DNS Resolver\n(validation-enabled)
-    participant IPA as BIND\n(ipa.example.com)
+    participant IPA as BIND\n(ipa1.example.com)
     participant ROOT as Root DNS (.)
     participant TLD as .com DNS
 
@@ -486,19 +486,19 @@ ipa dnsrecord-add example.com mail --a-rec=192.168.1.30
 ipa dnsrecord-add example.com @ --mx-rec="10 mail.example.com."
 
 # Verify with dig
-dig @ipa.example.com web01.example.com A
-dig @ipa.example.com www.example.com CNAME
-dig @ipa.example.com example.com MX
+dig @ipa1.example.com web01.example.com A
+dig @ipa1.example.com www.example.com CNAME
+dig @ipa1.example.com example.com MX
 
 # Add reverse PTR records
 ipa dnsrecord-add 1.168.192.in-addr.arpa. 20 --ptr-rec=web01.example.com.
-dig @ipa.example.com -x 192.168.1.20
+dig @ipa1.example.com -x 192.168.1.20
 
 # ── EXERCISE 2: Forwarder configuration ─────────────────────────────────────
 
 ipa dnsconfig-show
 ipa dnsconfig-mod --forwarder=8.8.8.8
-dig @ipa.example.com google.com A   # should resolve via forwarder
+dig @ipa1.example.com google.com A   # should resolve via forwarder
 
 # ── EXERCISE 3: DNSSEC ───────────────────────────────────────────────────────
 
@@ -506,8 +506,8 @@ dig @ipa.example.com google.com A   # should resolve via forwarder
 ipa dnszone-mod example.com --dnssec=true
 
 # Verify DNSSEC records are present
-dig @ipa.example.com example.com DNSKEY
-dig @ipa.example.com web01.example.com A +dnssec
+dig @ipa1.example.com example.com DNSKEY
+dig @ipa1.example.com web01.example.com A +dnssec
 # Should show RRSIG record alongside A record
 
 # Validate with delv
@@ -515,7 +515,7 @@ delv @127.0.0.1 web01.example.com A
 # Expect: "; fully validated" in output (if trust anchor configured)
 
 # Check NSEC3 records (authenticated denial of existence)
-dig @ipa.example.com nonexistent.example.com A +dnssec
+dig @ipa1.example.com nonexistent.example.com A +dnssec
 # Should return NSEC3 record proving the name doesn't exist
 
 # Check DNSSEC validation in BIND logs
@@ -524,10 +524,10 @@ journalctl -u named --since "5 min ago" | grep -i dnssec
 # ── EXERCISE 4: SRV record inspection ────────────────────────────────────────
 
 # View auto-created SRV records (from ipa-server-install)
-dig @ipa.example.com _ldap._tcp.example.com SRV
-dig @ipa.example.com _kerberos._tcp.EXAMPLE.COM SRV
-dig @ipa.example.com _kerberos._udp.EXAMPLE.COM SRV
-dig @ipa.example.com _kpasswd._tcp.EXAMPLE.COM SRV
+dig @ipa1.example.com _ldap._tcp.example.com SRV
+dig @ipa1.example.com _kerberos._tcp.EXAMPLE.COM SRV
+dig @ipa1.example.com _kerberos._udp.EXAMPLE.COM SRV
+dig @ipa1.example.com _kpasswd._tcp.EXAMPLE.COM SRV
 ```
 
 [↑ Back to TOC](#table-of-contents)

@@ -65,11 +65,14 @@ failures trace back to misconfigured DNS or hostname.
 # Correct /etc/hosts entry
 192.168.1.10  ipa.example.com  ipa
 
-# Verify forward lookup
+# Verify forward lookup (via /etc/hosts or DNS)
 getent hosts ipa.example.com    # must return 192.168.1.10
+dig +short ipa.example.com      # test DNS independently of /etc/hosts
+resolvectl query ipa.example.com 2>/dev/null || host ipa.example.com
 
 # Verify reverse lookup
 getent hosts 192.168.1.10       # must return ipa.example.com
+dig +short -x 192.168.1.10      # DNS reverse lookup
 
 # Verify FQDN
 hostname -f                     # must return ipa.example.com
@@ -194,7 +197,7 @@ ipa-server-install \
   --forwarder=8.8.8.8 \
   --forwarder=8.8.4.4 \
   --reverse-zone=1.168.192.in-addr.arpa. \
-  --no-dnssec-validation \
+  --no-dnssec-validation \   # ⚠️ lab-only — omit in production
   --unattended
 ```
 

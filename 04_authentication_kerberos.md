@@ -203,7 +203,7 @@ They allow the host to authenticate to IPA services (LDAP, certificate renewal).
 ### 3.3 Service Principals
 
 ```
-HTTP/ipa.example.com@EXAMPLE.COM
+HTTP/ipa1.example.com@EXAMPLE.COM
 │    └─────────────── FQDN of the host running the service
 └──── Service type (HTTP, ldap, nfs, cifs, DNS, etc.)
 ```
@@ -212,7 +212,7 @@ HTTP/ipa.example.com@EXAMPLE.COM
 graph TD
     A[Principal namespace\nEXAMPLE.COM] --> B[User principals\njdoe@EXAMPLE.COM\nadmin@EXAMPLE.COM]
     A --> C[Host principals\nhost/server1.example.com\nhost/server2.example.com]
-    A --> D[Service principals\nHTTP/ipa.example.com\nldap/ipa.example.com\nnfs/storage.example.com\ncifs/fileserver.example.com\nDNS/ipa.example.com]
+    A --> D[Service principals\nHTTP/ipa1.example.com\nldap/ipa1.example.com\nnfs/storage.example.com\ncifs/fileserver.example.com\nDNS/ipa1.example.com]
     A --> E[IPA internal\nkrbtgt/EXAMPLE.COM\nkadmin/admin\nkadmin/changepw]
 ```
 
@@ -265,17 +265,17 @@ graph LR
 ```bash
 # Retrieve keytab for a service (from the IPA server or any enrolled client)
 # (requires admin TGT or host-level permission)
-ipa-getkeytab -s ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab
 
 # Retrieve host keytab (usually done by ipa-client-install)
-ipa-getkeytab -s ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
   -p host/server1.example.com \
   -k /etc/krb5.keytab
 
 # Retrieve keytab and append to existing file
-ipa-getkeytab -s ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
   -p nfs/storage.example.com \
   -k /etc/krb5.keytab \
   --append
@@ -290,7 +290,7 @@ klist   # verify ticket obtained
 
 # Rotate a service key: force new key generation then re-retrieve the keytab
 # Step 1 — generate a new key version (kvno bumped) and immediately re-retrieve
-ipa-getkeytab -s ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab \
   -g                              # -g forces a new key to be generated
@@ -649,18 +649,18 @@ kinit -R
 # ── EXERCISE 2: Service ticket acquisition ───────────────────────────────────
 
 kinit admin
-kvno ldap/ipa.example.com       # fetch service ticket
+kvno ldap/ipa1.example.com       # fetch service ticket
 klist                            # shows both TGT and service ticket
 klist -v                         # shows service ticket details
 
 # ── EXERCISE 3: Keytab operations ────────────────────────────────────────────
 
 # Create a test service principal
-ipa service-add test/ipa.example.com
+ipa service-add test/ipa1.example.com
 
 # Retrieve its keytab
-ipa-getkeytab -s ipa.example.com \
-  -p test/ipa.example.com \
+ipa-getkeytab -s ipa1.example.com \
+  -p test/ipa1.example.com \
   -k /tmp/test.keytab
 
 # Inspect the keytab
@@ -668,13 +668,13 @@ klist -k /tmp/test.keytab -e
 
 # Authenticate with the keytab (no password)
 kdestroy
-kinit -k -t /tmp/test.keytab test/ipa.example.com
-klist     # should show TGT for test/ipa.example.com
+kinit -k -t /tmp/test.keytab test/ipa1.example.com
+klist     # should show TGT for test/ipa1.example.com
 
 # Clean up
 kdestroy
 rm /tmp/test.keytab
-ipa service-del test/ipa.example.com
+ipa service-del test/ipa1.example.com
 
 # ── EXERCISE 4: OTP token setup ──────────────────────────────────────────────
 

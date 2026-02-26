@@ -4,6 +4,10 @@
 
 ---
 
+> 🔁 **See also:** [Module 12 — Replication Topology](../12_replication_topology.md)
+
+---
+
 ## Table of Contents
 
 - [Topology Management](#topology-management)
@@ -24,7 +28,7 @@
 ipa server-find
 
 # Show server details (services, roles)
-ipa server-show ipa1.ipa.example.com
+ipa server-show ipa1.example.com
 
 # List topology segments (domain suffix)
 ipa topologysegment-find --topologysuffix=domain
@@ -37,13 +41,13 @@ ipa topologysegment-show domain ipa1-to-ipa2
 
 # Add a new topology segment
 ipa topologysegment-add domain \
-    --leftnode=ipa1.ipa.example.com \
-    --rightnode=ipa3.ipa.example.com \
+    --leftnode=ipa1.example.com \
+    --rightnode=ipa3.example.com \
     --direction=both
 
 ipa topologysegment-add ca \
-    --leftnode=ipa1.ipa.example.com \
-    --rightnode=ipa3.ipa.example.com \
+    --leftnode=ipa1.example.com \
+    --rightnode=ipa3.example.com \
     --direction=both
 
 # Remove a topology segment
@@ -91,13 +95,14 @@ sudo ipa-ca-install \
     --admin-password='AdminPassword123!'
 
 # Remove a replica cleanly (run on the replica being decommissioned)
+# ⚠️ IRREVERSIBLE — take a backup first (ipa-backup)
 sudo ipa-server-install --uninstall
 
 # Remove from a remote server (if target is unreachable)
-ipa server-del ipa-old.ipa.example.com
+ipa server-del ipa-old.example.com
 
 # Force remove (ignores connectivity issues)
-ipa server-del ipa-old.ipa.example.com \
+ipa server-del ipa-old.example.com \
     --force \
     --ignore-topology-disconnect
 ```
@@ -154,16 +159,16 @@ sudo ldapsearch -x -H ldap://localhost \
 ```bash
 # Force immediate sync FROM a specific master
 sudo ipa-replica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Re-initialize this replica from scratch
 # (WARNING: destructive — rebuilds all data from source)
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Re-initialize CA suffix from scratch
 sudo ipa-csreplica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Monitor re-initialization progress
 sudo ldapsearch -x -H ldap://localhost \
@@ -195,17 +200,17 @@ sudo ipa-csreplica-manage -p 'DM_Password' status
 
 # Force CA sync
 sudo ipa-csreplica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Re-initialize CA replication
 sudo ipa-csreplica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Check which server is CRL master
 ipa config-show | grep "IPA CA renewal master"
 
 # Move CRL master to another server
-ipa config-mod --ca-renewal-master-server=ipa2.ipa.example.com
+ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
 # Enable CRL generation on new master
 # Always back up CS.cfg before editing:
@@ -254,9 +259,13 @@ sudo ipa-restore \
 # After restoring a single master:
 # Re-initialize all other replicas from the restored master
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.ipa.example.com
+    --from=ipa1.example.com
 
 # Backup retention — keep last 7 backups, delete older
+# Step 1: DRY RUN — preview what would be deleted
+ls -dt /var/lib/ipa/backup/ipa-full-* | tail -n +8
+# Step 2: verify the path and count look correct, then delete
+# ⚠️ Double-check the path before running rm -rf
 ls -dt /var/lib/ipa/backup/ipa-full-* | \
     tail -n +8 | \
     xargs -r sudo rm -rf
@@ -324,15 +333,15 @@ sudo systemctl restart dirsrv@IPA-EXAMPLE-COM.service
 ipa topologysuffix-verify domain
 # If disconnected — add missing segments:
 ipa topologysegment-add domain \
-    --leftnode=isolated.ipa.example.com \
-    --rightnode=ipa1.ipa.example.com \
+    --leftnode=isolated.example.com \
+    --rightnode=ipa1.example.com \
     --direction=both
 
 # Healthcheck for replication
 sudo ipa-healthcheck --source ipahealthcheck.ds.replication
 
 # Check for clock skew between replicas
-for server in ipa1.ipa.example.com ipa2.ipa.example.com; do
+for server in ipa1.example.com ipa2.example.com; do
     echo -n "$server: "
     ssh "$server" "date '+%Y-%m-%d %H:%M:%S %Z'"
 done

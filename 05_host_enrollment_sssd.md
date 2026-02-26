@@ -440,7 +440,7 @@ ipa host-show client01.example.com --all | grep -i cert
 ## 8. Unenrolling a Client
 
 ```bash
-# (client) Unenroll and remove IPA configuration
+# (client) Unenroll and remove IPA configuration (⚠️ irreversible)
 ipa-client-install --uninstall
 
 # (server) Remove the host object from IPA (if client-side uninstall failed)

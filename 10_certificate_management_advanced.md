@@ -233,7 +233,7 @@ certificates from the IPA CA automatically.
 ```mermaid
 graph TD
     subgraph "IPA ACME Endpoint"
-        ACME[IPA ACME Server\nhttps://ipa.example.com/acme/directory]
+        ACME[IPA ACME Server\nhttps://ipa1.example.com/acme/directory]
         ACME -->|issues via| CA[Dogtag CA\nacmeIPAServerCert profile]
     end
     subgraph "ACME Clients"
@@ -255,7 +255,7 @@ graph TD
 ipa-acme-manage enable
 
 # Verify ACME is available
-curl https://ipa.example.com/acme/directory
+curl https://ipa1.example.com/acme/directory
 
 # Disable ACME (if needed)
 ipa-acme-manage disable
@@ -308,7 +308,7 @@ dnf install -y certbot
 # HTTP-01 challenge (requires port 80 accessible from IPA ACME server)
 certbot certonly \
   --standalone \
-  --server https://ipa.example.com/acme/directory \
+  --server https://ipa1.example.com/acme/directory \
   --domain webapp.example.com \
   --email admin@example.com \
   --no-eff-email \
@@ -318,18 +318,18 @@ certbot certonly \
 certbot certonly \
   --manual \
   --preferred-challenges=dns \
-  --server https://ipa.example.com/acme/directory \
+  --server https://ipa1.example.com/acme/directory \
   --domain webapp.example.com
 
 # Or use dns-01 with nsupdate for automated DNS challenge
 certbot certonly \
   --authenticator dns-rfc2136 \
   --dns-rfc2136-credentials /etc/certbot/rfc2136.ini \
-  --server https://ipa.example.com/acme/directory \
+  --server https://ipa1.example.com/acme/directory \
   --domain webapp.example.com
 
 # /etc/certbot/rfc2136.ini:
-# dns_rfc2136_server = ipa.example.com
+# dns_rfc2136_server = ipa1.example.com
 # dns_rfc2136_port = 53
 # dns_rfc2136_name = webapp.example.com.
 # dns_rfc2136_secret = <TSIG key>
@@ -424,7 +424,7 @@ is revoked in real-time, without downloading the full CRL.
 graph TD
     subgraph "OCSP Validation"
         CLIENT["TLS Client\nbrowser / curl"] -->|"1. connects to server"| SERVER["Server with IPA cert"]
-        CLIENT -->|"2. extract OCSP URL\nAIA extension"| OCSP_URL["Dogtag OCSP URL\nipa.example.com/ca/ocsp"]
+        CLIENT -->|"2. extract OCSP URL\nAIA extension"| OCSP_URL["Dogtag OCSP URL\nipa1.example.com/ca/ocsp"]
         CLIENT -->|"3. OCSP Request\nserial number"| OCSP["Dogtag OCSP Responder"]
         OCSP -->|"check serial"| DB[("Dogtag cert DB\nrevocation list")]
         DB -->|"revocation status"| OCSP
@@ -438,11 +438,11 @@ graph TD
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /etc/pki/tls/certs/webapp.crt \
-  -url http://ipa.example.com/ca/ocsp \
+  -url http://ipa1.example.com/ca/ocsp \
   -text
 
 # Check with more verbose output
-openssl s_client -connect ipa.example.com:443 -status 2>&1 \
+openssl s_client -connect ipa1.example.com:443 -status 2>&1 \
   | grep -A5 "OCSP response"
 ```
 
@@ -456,10 +456,10 @@ IPA generates it automatically.
 ipa config-show | grep -i crl
 
 # Fetch current CRL
-curl -s http://ipa.example.com/ipa/crl/MasterCRL.bin | openssl crl -inform DER -text -noout | head -30
+curl -s http://ipa1.example.com/ipa/crl/MasterCRL.bin | openssl crl -inform DER -text -noout | head -30
 
 # Or get it as PEM
-curl -s http://ipa.example.com/ipa/crl/MasterCRL.bin \
+curl -s http://ipa1.example.com/ipa/crl/MasterCRL.bin \
   | openssl crl -inform DER -out /tmp/ipa-crl.pem
 
 # View CRL contents (revoked certificates)
@@ -692,7 +692,7 @@ openssl x509 -in /tmp/api-30day.crt -noout -text \
 
 ipa-acme-manage enable
 ipa-acme-manage status
-curl -s https://ipa.example.com/acme/directory | python3 -m json.tool
+curl -s https://ipa1.example.com/acme/directory | python3 -m json.tool
 
 # ── EXERCISE 5: OCSP check ───────────────────────────────────────────────────
 
@@ -700,7 +700,7 @@ curl -s https://ipa.example.com/acme/directory | python3 -m json.tool
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /tmp/api.crt \
-  -url http://ipa.example.com/ca/ocsp
+  -url http://ipa1.example.com/ca/ocsp
 
 # Revoke the cert and re-check
 SERIAL=$(openssl x509 -in /tmp/api.crt -noout -serial \
@@ -710,7 +710,7 @@ ipa cert-revoke $SERIAL --revocation-reason=5
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /tmp/api.crt \
-  -url http://ipa.example.com/ca/ocsp
+  -url http://ipa1.example.com/ca/ocsp
 # Should now show: revoked
 
 # ── EXERCISE 6: Health check for certs ───────────────────────────────────────
