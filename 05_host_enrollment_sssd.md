@@ -1,4 +1,7 @@
 # Module 05 — Host Enrollment and SSSD
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](./LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
 
 > Enrolling Linux clients into FreeIPA, understanding the SSSD architecture,
 > PAM/NSS integration, offline authentication, and host group management.
@@ -526,3 +529,7 @@ tail -f /var/log/sssd/sssd_example.com.log
 ```
 
 [↑ Back to TOC](#table-of-contents)
+
+---
+
+*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*

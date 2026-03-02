@@ -1,4 +1,8 @@
 # CS-08 — Troubleshooting Cheatsheet
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](../LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
+
 > Quick-reference diagnostics for FreeIPA on RHEL 10: service health, Kerberos, replication, certificates, DNS, SSSD, and AD trust.
 
 > 🔁 **See also:** [Module 14 — Troubleshooting](../14_troubleshooting.md)
@@ -998,3 +1002,7 @@ flowchart TD
 ---
 
 *Platform: RHEL 10 | FreeIPA 4.12.x | SSSD 2.9.x | Certmonger 0.79.x | Dogtag 11.x*
+
+---
+
+*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*

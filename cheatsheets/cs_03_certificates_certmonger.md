@@ -1,4 +1,7 @@
 # CS-03 — Certificates and Certmonger Cheatsheet
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](../LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
 
 > Quick-reference for certificate operations, certmonger management, Dogtag CA, and CSR workflows in FreeIPA on RHEL 10.
 
@@ -401,3 +404,7 @@ sudo journalctl -u certmonger --since "today" | grep -iE "error|fail|warn"
 # Check IPA CA healthcheck
 sudo ipa-healthcheck --source ipahealthcheck.ipa.certs
 ```
+
+---
+
+*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*

@@ -10,6 +10,10 @@
 **BIND:** 9.18.x  
 **Python:** 3.12  
 
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
+
 ---
 
 ## Lab Environment Requirements
@@ -131,3 +135,16 @@ Operations ──▶  cheatsheets/ (use as reference at any level)
 All `firewall-cmd` examples use `firewalld`. `iptables` is not used.  
 All container examples use `podman` (rootless). Docker is not used.  
 Crypto: SHA-256 minimum. SHA-1 and MD5 are never used. No `LEGACY` crypto policy.
+
+---
+
+## License
+
+This project is licensed under the
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
+
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+---
+
+© 2026 UncleJS — Licensed under CC BY-NC-SA 4.0

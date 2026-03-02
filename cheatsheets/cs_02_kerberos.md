@@ -1,4 +1,7 @@
 # CS-02 — Kerberos Cheatsheet
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](../LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
 
 > Quick-reference for Kerberos operations, ticket management, keytabs, enctypes, and troubleshooting on RHEL 10 / FreeIPA 4.12.
 
@@ -382,3 +385,7 @@ KRB5_TRACE=/dev/stderr kinit admin 2>&1 | grep -v "^$"
 # Check KDC is running
 sudo systemctl status krb5kdc kadmin
 ```
+
+---
+
+*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*

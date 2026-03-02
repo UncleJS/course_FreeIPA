@@ -1,4 +1,8 @@
 # CS-09 — Operational Recipes
+[![CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)](../LICENSE.md)
+[![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
+[![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
+
 > 12 step-by-step runbooks for production FreeIPA operations on RHEL 10.
 
 > 🔁 **See also (reference guide — spans all modules):** [Module 02 — Installation](../02_installation.md) · [Module 05 — Host Enrollment](../05_host_enrollment_sssd.md) · [Module 09 — Certificates: Fundamentals](../09_certificate_management_fundamentals.md) · [Module 11 — AD Trust](../11_ad_trust.md) · [Module 12 — Replication](../12_replication_topology.md) · [Module 13 — Security Hardening](../13_security_hardening.md) · [Module 14 — Troubleshooting](../14_troubleshooting.md) · [Module 15 — Upgrade & Migration](../15_upgrade_migration.md)
@@ -1357,3 +1361,7 @@ echo "Hardening complete. Baseline saved."
 ---
 
 *Platform: RHEL 10 | FreeIPA 4.12.x | Dogtag 11.x | SSSD 2.9.x | Certmonger 0.79.x | OpenSSL 3.2.x*
+
+---
+
+*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
