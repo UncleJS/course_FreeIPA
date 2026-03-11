@@ -49,6 +49,8 @@ ipa --version
 rpm -q ipa-server
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## User Operations
@@ -108,6 +110,8 @@ ipa user-mod jsmith \
     --setattr=krbPasswordExpiration=19700101000000Z
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Group Operations
@@ -140,6 +144,8 @@ ipa group-mod developers --desc="Dev and Ops team"
 # Delete group
 ipa group-del developers
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -187,6 +193,8 @@ ipa-getkeytab -s ipa1.example.com \
 ipa host-del server1.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## HBAC Operations
@@ -226,6 +234,8 @@ ipa hbacrule-enable allow_ssh_devs
 ipa hbacrule-del allow_ssh_devs
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Sudo Rule Operations
@@ -263,6 +273,8 @@ sudo -l -U jsmith
 ipa sudorule-del allow_restart_web
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Password Policy
@@ -294,6 +306,8 @@ ipa pwpolicy-find
 # Simulate policy for a user
 ipa user-show jsmith | grep "Kerberos password expiration"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -333,6 +347,8 @@ ipa dnsforwardzone-add external.com \
     --forward-policy=only
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Kerberos Tickets
@@ -366,6 +382,8 @@ KRB5_TRACE=/dev/stderr kinit jsmith 2>&1 | head -30
 kinit -kt /etc/krb5.keytab host/server1.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Search and Find
@@ -394,6 +412,8 @@ ipa cert-find --validnotafter-from=20260101000000Z
 ipa service-find host/server1.example.com
 ipa service-find --sizelimit=0 | grep "Principal"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -428,6 +448,8 @@ for u in data['result']['result']:
 "
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

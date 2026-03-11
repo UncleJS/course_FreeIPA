@@ -65,6 +65,8 @@ ipa trust-add ad.example.com \
     --type=ad
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Trust Management
@@ -102,6 +104,8 @@ sudo wbinfo --name-to-sid='AD\aduser1'
 sudo wbinfo --sid-to-name='S-1-5-21-...-1105'
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## ID Ranges and Mapping
@@ -137,6 +141,8 @@ getent passwd aduser1@ad.example.com
 sudo sss_cache -E
 sudo systemctl restart sssd
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -176,6 +182,8 @@ ipa group-remove-member ext_linux_admins \
 # List all external groups
 ipa group-find --external=true
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -220,6 +228,8 @@ ipa sudorule-add-runasuser ad_sudo_all --users=root
 ipa sudorule-add-option ad_sudo_all --sudooption='!authenticate'
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## User Overrides and ID Views
@@ -263,6 +273,8 @@ ipa idview-unapply RestrictedView \
     --hosts=dmz1.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Winbind and SSSD Diagnostics
@@ -300,6 +312,8 @@ sudo sss_debuglevel --domain=ad.example.com 9
 sudo systemctl restart sssd
 sudo tail -f /var/log/sssd/sssd_ad.example.com.log
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -346,6 +360,8 @@ sudo chronyc makestep
 # Set-ADUser aduser1 -KerberosEncryptionType AES256,AES128
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

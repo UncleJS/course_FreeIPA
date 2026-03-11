@@ -59,6 +59,8 @@ done
 ipa-replica-manage list --verbose
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 2. Service Health
@@ -132,6 +134,8 @@ ipa-healthcheck --source ipahealthcheck.ds.replication
 ipa-healthcheck --source ipahealthcheck.ipa.dna
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 3. Log Locations
@@ -165,6 +169,8 @@ journalctl -u dirsrv@IPA-EXAMPLE-COM -n 100 --no-pager
 # Search for errors in DS log
 journalctl -u dirsrv@IPA-EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cannot'
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -262,6 +268,8 @@ ipa config-show | grep pkinit
 grep pkinit /etc/krb5.conf
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 5. LDAP / Directory Diagnostics
@@ -333,6 +341,8 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
 # Slow query threshold (ms)
 dsconf slapd-IPA-EXAMPLE-COM config get nsslapd-idletimeout nsslapd-ioblocktimeout
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -424,6 +434,8 @@ certutil -V -u V -d /etc/dirsrv/slapd-IPA-EXAMPLE-COM/ -n "Server-Cert"
 ipa config-show | grep -i crl
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 7. DNS Diagnostics
@@ -512,6 +524,8 @@ ipa dnsrecord-show example.com ipa
 # Validate DNS from IPA perspective
 ipa dns-resolve ipa1.example.com
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -606,6 +620,8 @@ rm -f /var/lib/sss/db/*.ldb
 systemctl start sssd
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 9. Replication Diagnostics
@@ -695,6 +711,8 @@ ipa topologysuffix-find
 ipa topologysegment-verify dc=example,dc=com ipa-to-ipa2
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 10. AD Trust Diagnostics
@@ -772,6 +790,8 @@ systemctl restart sssd
 sss_cache -E
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 11. IPA API / WebUI Diagnostics
@@ -820,6 +840,8 @@ echo '{"method":"ping","params":[[],{}]}' | \
   -H "Referer: https://ipa1.example.com/ipa" \
   -d @- | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}))"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -871,6 +893,8 @@ klist -eK /etc/krb5.keytab 2>/dev/null | grep -iE 'rc4|des|arcfour'
 # Check NSS FIPS mode
 certutil -d /etc/httpd/alias/ -K
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -957,6 +981,8 @@ ipa-replica-manage dnarange-show
 ipa-replica-manage dnarange-set ipa1.example.com 1000-1999
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## 14. Diagnostic Decision Tree
@@ -1003,6 +1029,8 @@ flowchart TD
 
 *Platform: RHEL 10 | FreeIPA 4.12.x | SSSD 2.9.x | Certmonger 0.79.x | Dogtag 11.x*
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

@@ -62,6 +62,8 @@ sudo getcert start-tracking \
 sudo getcert list-cas
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Request and Renew Certificates
@@ -119,6 +121,8 @@ ipa cert-request server.csr \
     --profile-id=caIPAserviceCert
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## IPA cert-* Commands
@@ -163,6 +167,8 @@ ipa cert-remove-hold 15
 ipa cert-del <serial>
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Certificate Profiles
@@ -195,6 +201,8 @@ ipa certprofile-mod caIPAserviceCert --file=/tmp/svc.cfg
 # Delete custom profile (cannot delete built-ins)
 ipa certprofile-del MyCustomProfile
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -234,6 +242,8 @@ openssl x509 -in server.crt -noout -text
 openssl x509 -in server.crt -noout -subject -issuer -dates -fingerprint -sha256
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## CA Certificate and Chain
@@ -264,6 +274,8 @@ curl -sk https://ipa1.example.com/ipa/config/ca.crt \
     -o /tmp/ipa-ca.crt
 openssl x509 -in /tmp/ipa-ca.crt -noout -subject -dates
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -298,6 +310,8 @@ sudo grep "crl.MasterCRL.enable" \
     /etc/pki/pki-tomcat/ca/CS.cfg
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Dogtag CA Operations
@@ -329,6 +343,8 @@ ls /etc/pki/pki-tomcat/ca/
 sudo grep -E "^ca\.(crl|signing|subsystem)" \
     /etc/pki/pki-tomcat/ca/CS.cfg | head -20
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -369,6 +385,8 @@ ipa ca-disable DevCA
 ipa ca-del DevCA
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Troubleshooting
@@ -405,6 +423,8 @@ sudo journalctl -u certmonger --since "today" | grep -iE "error|fail|warn"
 sudo ipa-healthcheck --source ipahealthcheck.ipa.certs
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

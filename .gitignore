@@ -1,0 +1,54 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Config files containing credentials
+*credentials*
+*secrets*
+config/secrets.*
+config/credentials.*
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.cer
+
+# Editor and OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+*.orig
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.Python
+
+# Node (if any tooling used)
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+site/

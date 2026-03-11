@@ -62,6 +62,8 @@ ipa topologysuffix-verify ca
 # Expected: "Replication topology graph is connected."
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Replica Install and Remove
@@ -110,6 +112,8 @@ ipa server-del ipa-old.example.com \
     --ignore-topology-disconnect
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Replication Health
@@ -155,6 +159,8 @@ sudo ldapsearch -x -H ldap://localhost \
     grep -E "^(dn|cn|nsDS5)"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Force Sync and Re-initialize
@@ -191,6 +197,8 @@ sudo ipa-replica-manage -p 'DM_Password' clean-ruv <replica-id>
 # Verify RUV cleanup
 sudo ipa-replica-manage -p 'DM_Password' list
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -231,6 +239,8 @@ sudo sed -i \
     /etc/pki/pki-tomcat/ca/CS.cfg
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -274,6 +284,8 @@ ls -dt /var/lib/ipa/backup/ipa-full-* | \
     xargs -r sudo rm -rf
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Conflict Resolution
@@ -307,6 +319,8 @@ sudo ldapsearch -x -H ldap://localhost \
     "(objectClass=nsTombstone)" \
     dn nsds5ReplConflict 2>/dev/null | head -20
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -350,6 +364,8 @@ for server in ipa1.example.com ipa2.example.com; do
 done
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

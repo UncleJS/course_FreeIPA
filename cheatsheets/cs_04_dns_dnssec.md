@@ -64,6 +64,8 @@ ipa dnszone-enable example.com
 ipa dnszone-del oldzone.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Record Operations
@@ -124,6 +126,8 @@ ipa dnsrecord-del example.com oldserver \
     --del-all
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Reverse Zones
@@ -150,6 +154,8 @@ ipa dnsrecord-add example.com server3 \
     --a-rec=192.168.1.22 \
     --a-create-reverse
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -192,6 +198,8 @@ ipa dnsforwardzone-enable ad.example.com
 ipa dnsforwardzone-del ad.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## DNSSEC Operations
@@ -228,6 +236,8 @@ sudo ods-enforcer enforce
 sudo ods-enforcer key list --zone=example.com --verbose
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## SRV Records
@@ -258,6 +268,8 @@ ipa dnsrecord-add example.com _ldap._tcp \
     --srv-rec="0 100 389 ipa1.example.com." \
     --srv-rec="10 100 389 ipa2.example.com."
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -295,6 +307,8 @@ dig +trace ipa1.example.com @8.8.8.8
 dig +dnssec +cd example.com SOA @localhost
 dig +dnssec example.com SOA @localhost
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -336,6 +350,8 @@ sudo tail -30 /var/log/named/named.log 2>/dev/null || \
 sudo journalctl -u named | grep -i "ldap\|dyndb" | tail -20
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Troubleshooting
@@ -372,6 +388,8 @@ sudo ods-enforcer key list --zone=example.com
 sudo ipa-healthcheck --source ipahealthcheck.ipa.dns
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

@@ -67,6 +67,8 @@ ipa role-del "App Team Admin"
 ipa user-show jsmith --all | grep "memberof"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Privileges
@@ -95,6 +97,8 @@ ipa privilege-remove-permission "Manage App Servers" \
 # Delete privilege
 ipa privilege-del "Manage App Servers"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -136,6 +140,8 @@ ipa permission-del "Allow read email addresses"
 ipa permission-show "System: Add Users" | grep "Granted to"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Self-Service Permissions
@@ -161,6 +167,8 @@ ipa selfservice-mod "Users can manage their own phone" \
 # Delete self-service permission
 ipa selfservice-del "Users can manage their own phone"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -196,6 +204,8 @@ ipa delegation-mod "helpdesk manages passwords" \
 ipa delegation-del "helpdesk manages passwords"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Built-in Roles Reference
@@ -224,6 +234,8 @@ ipa role-add-member "User Administrator" \
 # Show all members of a built-in role
 ipa role-show "Helpdesk"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -254,6 +266,8 @@ sudo ldapsearch -x -H ldap://localhost \
 # IPA manages ACIs automatically via permissions
 # Do NOT manually edit ACIs — use ipa permission-* instead
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -288,6 +302,8 @@ ipa role-add-privilege "Custom Role" \
     --privileges="System: Modify Users"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

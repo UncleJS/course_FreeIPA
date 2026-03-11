@@ -68,6 +68,8 @@ kvno -S host server1.example.com
 kvno HTTP/ipa1.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Ticket Options and Lifetimes
@@ -98,6 +100,8 @@ ipa krbtpolicy-reset --user=svc_batch
 # D=postDateable d=postdated  R=Renewable  I=Initial
 # H=hardware auth A=preauth   T=transit policy checked
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -147,6 +151,8 @@ sudo chown root:apache /etc/httpd/conf/krb5.keytab
 sudo chmod 640 /etc/httpd/conf/krb5.keytab
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Service Principals
@@ -183,6 +189,8 @@ ipa service-disallow-retrieve-keytab \
 ipa service-del HTTP/webapp.example.com
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Enctype Reference
@@ -210,6 +218,8 @@ sudo tee /etc/krb5.conf.d/ipa-hardened-enctypes.conf << 'EOF'
  allow_weak_crypto    = false
 EOF
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -242,6 +252,8 @@ ipa user-unlock jsmith
 # Check account lockout status
 ipa user-show jsmith | grep -i "Kerberos last\|locked\|disabled"
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -290,6 +302,8 @@ ipa radiusproxy-add corp-radius \
 ipa user-mod jsmith --radius=corp-radius
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## KDC Administration (kadmin)
@@ -326,6 +340,8 @@ sudo kdb5_util stash -P 'MasterPassword' 2>/dev/null || \
     echo "Stash file exists"
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## Cross-Realm / AD Trust Tickets
@@ -348,6 +364,8 @@ sudo kadmin.local -q "getprinc krbtgt/EXAMPLE.COM@AD.EXAMPLE.COM"
 # Check PAC in ticket (requires LDAP PAC inspection — use SSSD logs)
 id aduser@ad.example.com
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -386,6 +404,8 @@ KRB5_TRACE=/dev/stderr kinit admin 2>&1 | grep -v "^$"
 sudo systemctl status krb5kdc kadmin
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*

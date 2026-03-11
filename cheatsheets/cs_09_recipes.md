@@ -141,6 +141,8 @@ flowchart LR
     I --> J
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## R-02 — Add a CA Replica
@@ -222,6 +224,8 @@ ipa-healthcheck --failures-only
 # On clients, add replica as fallback server
 # /etc/sssd/sssd.conf: ipa_server = ipa1.example.com, ipa2.example.com
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -321,6 +325,8 @@ ipa hbacrule-add-host allow_sysadmins --hosts=client1.example.com
 ipa hbacrule-disable allow_all
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## R-04 — Issue and Auto-Renew a Service Certificate
@@ -419,6 +425,8 @@ sequenceDiagram
     CM->>SVC: systemctl reload nginx\n(post-renew hook)
     Note over SVC: Serving new certificate
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -536,6 +544,8 @@ flowchart TD
     G -- No --> I[Check DNS resolution\nwbinfo --ping-dc\njournalctl sssd]
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## R-06 — Create a Helpdesk Operator with Scoped RBAC
@@ -652,6 +662,8 @@ graph LR
     P1 --> DS[(389-DS\nnon-admin users only)]
     P2 --> DS
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -774,6 +786,8 @@ flowchart TD
     I --> J[ipa-healthcheck\n--failures-only]
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## R-08 — Safely Decommission a Replica
@@ -870,6 +884,8 @@ ipa-healthcheck --failures-only
 ipa server-find
 ipa topologysegment-find dc=example,dc=com
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -977,6 +993,8 @@ flowchart TD
     K --> L[Renew certs\nif backup was old]
 ```
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
 ## R-10 — Migrate Users from OpenLDAP
@@ -1079,6 +1097,8 @@ ipa config-show | grep migration
 kinit jdoe   # use migrated password
 ssh -l jdoe client1.example.com
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -1194,6 +1214,8 @@ flowchart LR
     J --> K[Rolling client upgrades]
     K --> L([Complete ✓])
 ```
+
+[↑ Back to TOC](#table-of-contents)
 
 ---
 
@@ -1362,6 +1384,8 @@ echo "Hardening complete. Baseline saved."
 
 *Platform: RHEL 10 | FreeIPA 4.12.x | Dogtag 11.x | SSSD 2.9.x | Certmonger 0.79.x | OpenSSL 3.2.x*
 
+[↑ Back to TOC](#table-of-contents)
+
 ---
 
-*Licensed under [CC BY-NC-SA 4.0](LICENSE.md) · © 2026 UncleJS*
+*Licensed under [CC BY-NC-SA 4.0](../LICENSE.md) · © 2026 UncleJS*
