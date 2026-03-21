@@ -14,6 +14,19 @@
 [![RHEL 10](https://img.shields.io/badge/platform-RHEL%2010-red)](https://access.redhat.com/products/red-hat-enterprise-linux)
 [![FreeIPA](https://img.shields.io/badge/FreeIPA-v4.12-blue)](https://www.freeipa.org)
 
+## Who This Course Is For
+
+- Linux and RHEL administrators who need a complete identity-management path from installation to operations.
+- Platform and infrastructure engineers responsible for Kerberos, DNS, certificates, and Linux access policy.
+- Security-conscious operators who need practical guidance for trust, replication, hardening, troubleshooting, and upgrades.
+
+## Assumed Background
+
+- Comfortable working at the shell on RHEL 10.
+- Basic understanding of hostnames, DNS records, IP networking, and package installation.
+- General familiarity with Linux users, groups, SSH, and sudo.
+- Ability to provision one or more VMs with static IP addresses for hands-on labs.
+
 ---
 
 ## Lab Environment Requirements
@@ -56,6 +69,8 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 | AD Kerberos realm | `AD.EXAMPLE.COM` |
 
 > 📝 **Kerberos realms are always UPPERCASE; DNS domains are always lowercase.**
+
+> Note: Beginner modules use `ipa.example.com` as the single-server endpoint. Replication and advanced operations use `ipa1.example.com` and `ipa2.example.com`. Treat `ipa.example.com` as the stable alias that points to the current primary server.
 
 ### Firewall Ports (IPA Server)
 
@@ -111,12 +126,24 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 
 ## Learning Path
 
+### Recommended module order
+
 ```
-Beginner  ──▶  00 → 01 → 02 → 03
-Intermediate ──▶  04 → 05 → 06 → 07
-Advanced  ──▶  08 → 09 → 10 → 11 → 12
-Expert    ──▶  13 → 14 → 15
-Operations ──▶  cheatsheets/ (use as reference at any level)
+00 -> 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08 -> 09 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15
+
+Critical dependency:
+02 -> 03 -> 05
+Install the server, create users/groups, then enroll clients.
+```
+
+### Level grouping
+
+```
+Beginner     -> 00 -> 01 -> 02 -> 03
+Intermediate -> 04 -> 05 -> 06 -> 07
+Advanced     -> 08 -> 09 -> 10 -> 11 -> 12
+Expert       -> 13 -> 14 -> 15
+Operations   -> cheatsheets/ (use as reference at any level)
 ```
 
 ---

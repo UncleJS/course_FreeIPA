@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. What is FreeIPA?](#1-what-is-freeipa)
 - [2. Problems FreeIPA Solves](#2-problems-freeipa-solves)
 - [3. Core Components](#3-core-components)
@@ -21,6 +23,25 @@
 - [5. RHEL 10 Component Versions](#5-rhel-10-component-versions)
 - [6. Key Terminology](#6-key-terminology)
 - [7. Lab — Explore the Environment](#7-lab--explore-the-environment)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Basic Linux shell usage on RHEL 10.
+- General familiarity with hostnames, DNS, and package installation.
+- No prior FreeIPA experience is required.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Explain what FreeIPA provides and which problems it solves.
+- Identify the roles of LDAP, Kerberos, DNS, PKI, and SSSD in the stack.
+- Compare FreeIPA with adjacent identity-management options at a high level.
+- Validate that a lab host is ready for installation work.
 
 ---
 
@@ -339,6 +360,16 @@ sestatus
 - `getent hosts ipa.example.com` returns the server's static IP
 - `timedatectl` shows `NTP service: active` and `System clock synchronized: yes`
 - `getenforce` returns `Enforcing`
+
+
+---
+
+## Key Takeaways
+
+- FreeIPA is an integrated platform, not just an LDAP server.
+- DNS accuracy and time sync are foundational for every later module.
+- Use the IPA API and tooling instead of writing directly to LDAP.
+- The next module explains how the platform components are wired together.
 
 [↑ Back to TOC](#table-of-contents)
 

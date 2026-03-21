@@ -22,6 +22,7 @@
 - [OCSP and CRL](#ocsp-and-crl)
 - [Dogtag CA Operations](#dogtag-ca-operations)
 - [Sub-CAs](#sub-cas)
+- [Renewal Failure Recovery](#renewal-failure-recovery)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -384,6 +385,42 @@ ipa ca-disable DevCA
 # Delete a sub-CA (revokes its certificate)
 ipa ca-del DevCA
 ```
+
+[↑ Back to TOC](#table-of-contents)
+
+---
+
+## Renewal Failure Recovery
+
+```bash
+# Request stuck in renewal window - inspect full state
+sudo getcert list -i <request-id>
+
+# Retry submission and restart certmonger if helper state is stale
+sudo getcert resubmit -i <request-id>
+sudo systemctl restart certmonger
+
+# Review certmonger and Dogtag errors together
+sudo journalctl -u certmonger --since "1 hour ago"
+sudo journalctl -u pki-tomcatd@pki-tomcat --since "1 hour ago"
+
+# Replace an already expired custom service cert immediately
+sudo getcert request \
+    -f /etc/pki/tls/certs/webapp.crt \
+    -k /etc/pki/tls/private/webapp.key \
+    -K HTTP/webapp.example.com \
+    -D webapp.example.com \
+    -T caIPAserviceCert \
+    -C "systemctl reload httpd"
+
+# Track an NSS database nickname directly (389-DS example)
+sudo getcert start-tracking \
+    -d /etc/dirsrv/slapd-EXAMPLE-COM \
+    -n Server-Cert \
+    -C "systemctl restart dirsrv@EXAMPLE-COM.service"
+```
+
+> Deleting a service principal does not revoke the certificate automatically. Revoke abandoned or compromised certs explicitly with `ipa cert-revoke`.
 
 [↑ Back to TOC](#table-of-contents)
 

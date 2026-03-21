@@ -7,9 +7,13 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Hardening Philosophy](#1-hardening-philosophy)
+- [1.3 Threat Mapping for Common Controls](#13-threat-mapping-for-common-controls)
 - [2. RHEL 10 Crypto Policies](#2-rhel-10-crypto-policies)
 - [3. FIPS 140-3 Mode](#3-fips-140-3-mode)
+- [3.6 Retrofitting FIPS into an Existing IPA Deployment](#36-retrofitting-fips-into-an-existing-ipa-deployment)
 - [4. Kerberos Hardening](#4-kerberos-hardening)
 - [5. LDAP / 389-DS Hardening](#5-ldap--389-ds-hardening)
 - [6. Certificate and PKI Hardening](#6-certificate-and-pki-hardening)
@@ -20,6 +24,25 @@
 - [11. SELinux and System Hardening](#11-selinux-and-system-hardening)
 - [12. Hardening Checklist](#12-hardening-checklist)
 - [13. Lab — Apply a Hardening Baseline](#13-lab--apply-a-hardening-baseline)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 12.
+- Comfort with RHEL crypto policies, systemd, SELinux, and certificate basics.
+- A baseline IPA environment that can be hardened incrementally and tested.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Apply a repeatable hardening baseline to IPA servers and clients.
+- Choose between DEFAULT, FUTURE, and FIPS postures with clear trade-offs.
+- Tighten Kerberos, LDAP, PKI, firewall, and audit settings without losing operability.
+- Recognize when FIPS requires migration instead of in-place change.
 
 ---
 
@@ -51,6 +74,18 @@ graph TD
 | FIPS | Optional (`FIPS:DEFAULT` or `FIPS`) |
 | Minimum key size | RSA 2048 (DEFAULT), RSA 3072 (FIPS) |
 | TLS minimum | TLS 1.2 (DEFAULT), TLS 1.2 (FIPS), TLS 1.3 available |
+
+### 1.3 Threat Mapping for Common Controls
+
+| Control area | Primary risk reduced |
+|--------------|----------------------|
+| TLS-only LDAP and modern crypto policy | Credential theft and downgrade attacks |
+| Kerberos lockout, OTP, and enctype tightening | Password spraying, ticket abuse, and weak-crypto fallback |
+| PKI hygiene and shorter-lived certs | Long-lived credential exposure and stale trust chains |
+| HBAC, sudo, and RBAC discipline | Privilege creep and lateral movement |
+| Audit logging and SIEM export | Delayed detection and poor incident reconstruction |
+
+> Map each hardening change to a threat you are actually trying to reduce. This keeps the baseline explainable and prevents controls from drifting into untested policy clutter.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -214,6 +249,17 @@ grep -A10 '\[libdefaults\]' /etc/krb5.conf | grep enctype
 # If AD uses RC4 only, FIPS mode will break the trust
 # Fix: enable AES encryption on AD accounts and trust
 ```
+
+### 3.6 Retrofitting FIPS into an Existing IPA Deployment
+
+Treat FIPS adoption as a migration project, not an in-place flip on a busy existing IPA domain.
+
+- Build a new IPA environment on hosts that were booted into FIPS mode before installation.
+- Recreate or migrate identities, groups, policies, and certificates in a staged lab first.
+- Re-enroll clients and reissue service keytabs and certificates against the new environment.
+- Re-test AD trust, external services, and any clients that still depend on older crypto.
+
+> In-place retrofitting is not a safe shortcut. Existing keys, certificates, trust relationships, and package state may not satisfy FIPS constraints after the fact.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -1177,6 +1223,16 @@ sudo ausearch -m avc -ts recent 2>/dev/null | head -20
 ps -eZ | grep -E "dirsrv|httpd|krb5kdc|named|pki"
 # All should have proper IPA/httpd/krb5kdc SELinux contexts
 ```
+
+
+---
+
+## Key Takeaways
+
+- Hardening only helps when each control is mapped to an actual risk reduction goal.
+- FIPS changes deployment choices before install and integration planning begins.
+- Tightening cryptography often exposes weak dependencies in trusts and legacy clients.
+- Use staged rollout and verification for every hardening change.
 
 [↑ Back to TOC](#table-of-contents)
 

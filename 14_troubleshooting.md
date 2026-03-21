@@ -7,7 +7,10 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Troubleshooting Methodology](#1-troubleshooting-methodology)
+- [1.3 Pre-Flight Checklist for High-Risk Changes](#13-pre-flight-checklist-for-high-risk-changes)
 - [2. Log Files and Diagnostic Tools](#2-log-files-and-diagnostic-tools)
 - [3. Service Failures](#3-service-failures)
 - [4. Kerberos Errors](#4-kerberos-errors)
@@ -20,6 +23,25 @@
 - [11. Web UI and API Errors](#11-web-ui-and-api-errors)
 - [12. ipa-healthcheck Deep Dive](#12-ipa-healthcheck-deep-dive)
 - [13. Lab — Diagnose a Broken IPA Environment](#13-lab--diagnose-a-broken-ipa-environment)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 13 or already operate a real IPA deployment.
+- Shell access to servers and clients plus permission to inspect logs and services.
+- General familiarity with the IPA components covered earlier in the course.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Apply a consistent triage method before chasing component-specific fixes.
+- Collect the high-value evidence needed for service, auth, DNS, PKI, and trust issues.
+- Use ipa-healthcheck, journalctl, and targeted diagnostics together effectively.
+- Reduce time to recovery for the most common FreeIPA failures.
 
 ---
 
@@ -72,6 +94,31 @@ df -h /var /tmp /
 chronyc tracking | grep "System time\|RMS offset"
 timedatectl status
 ```
+
+### 1.3 Pre-Flight Checklist for High-Risk Changes
+
+Run this checklist before trust creation, replica work, CRL master moves, or upgrades. It is faster to stop here than to recover after a broken change window.
+
+```bash
+# DNS and hostname
+hostname -f
+dig +short $(hostname -f)
+
+# Time and Kerberos
+chronyc tracking
+kinit admin && klist
+
+# IPA health and replication
+ipactl status
+ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+ipa topologysuffix-verify domain
+
+# Certificate and disk sanity
+getcert list | grep -E "status:|expires"
+df -h / /var /tmp
+```
+
+> If any line above is already unhealthy, fix that first. Change windows fail most often when they begin on top of an existing DNS, replication, certificate, or storage problem.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -1112,6 +1159,16 @@ ssh -v jsmith@client1.example.com 2>&1 | \
 # Document findings
 echo "Root cause: $(date)" >> /var/log/ipa/incident-$(date +%Y%m%d).log
 ```
+
+
+---
+
+## Key Takeaways
+
+- Good troubleshooting starts with evidence collection, not random restarts.
+- Symptoms often appear in one component while the root cause lives in another.
+- A reusable pre-flight checklist prevents many high-risk changes from becoming incidents.
+- This module is both a learning guide and a runbook reference.
 
 [↑ Back to TOC](#table-of-contents)
 

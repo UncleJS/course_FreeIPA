@@ -25,6 +25,7 @@
 - [12. Crypto Policy & FIPS Diagnostics](#12-crypto-policy--fips-diagnostics)
 - [13. Emergency Recovery Commands](#13-emergency-recovery-commands)
 - [14. Diagnostic Decision Tree](#14-diagnostic-decision-tree)
+- [15. High-Risk Change Pre-Flight](#15-high-risk-change-pre-flight)
 
 ---
 
@@ -1028,6 +1029,35 @@ flowchart TD
 ---
 
 *Platform: RHEL 10 | FreeIPA 4.12.x | SSSD 2.9.x | Certmonger 0.79.x | Dogtag 11.x*
+
+[↑ Back to TOC](#table-of-contents)
+
+---
+
+## 15. High-Risk Change Pre-Flight
+
+Run this before trust creation, replica work, CRL moves, or upgrades.
+
+```bash
+# DNS and hostname
+hostname -f
+dig +short $(hostname -f)
+
+# Time and Kerberos
+chronyc tracking
+kinit admin && klist
+
+# IPA service and replication health
+ipactl status
+ipa-healthcheck --failures-only
+ipa topologysuffix-verify domain
+
+# Certificates and disk
+getcert list | grep -E "status:|expires"
+df -h / /var /tmp
+```
+
+> If this pre-flight is already dirty, fix that first. Most failed change windows begin on top of existing DNS, certificate, replication, or storage issues.
 
 [↑ Back to TOC](#table-of-contents)
 

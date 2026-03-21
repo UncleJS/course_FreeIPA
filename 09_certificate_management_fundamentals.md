@@ -13,6 +13,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Dogtag CA Architecture](#1-dogtag-ca-architecture)
   - [1.1 Components](#11-components)
   - [1.2 IPA CA Certificate Chain](#12-ipa-ca-certificate-chain)
@@ -32,11 +34,32 @@
   - [5.3 Tracking Certificates](#53-tracking-certificates)
   - [5.4 Renewal Cycle](#54-renewal-cycle)
   - [5.5 Pre-save and Post-save Commands](#55-pre-save-and-post-save-commands)
+- [5.6 Renewal Failure Recovery](#56-renewal-failure-recovery)
 - [6. IPA Service Certificates](#6-ipa-service-certificates)
   - [6.1 Built-in IPA Certs](#61-built-in-ipa-certs)
   - [6.2 Adding a Certificate to a Custom Service](#62-adding-a-certificate-to-a-custom-service)
+- [6.3 Tracking Certificates in NSS Databases](#63-tracking-certificates-in-nss-databases)
 - [7. Propagating CA Certificate Changes](#7-propagating-ca-certificate-changes)
 - [8. Lab — Certificate Operations](#8-lab--certificate-operations)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 08.
+- Basic familiarity with TLS, CSRs, private keys, and service principals.
+- An enrolled host or service available for certificate testing.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Explain the relationship between IPA, Dogtag CA, and certificate profiles.
+- Request, inspect, and revoke certificates with ipa cert-* commands.
+- Track certificates with certmonger and understand the renewal lifecycle.
+- Operate service certificates safely on both custom services and IPA components.
 
 ---
 
@@ -476,6 +499,34 @@ getcert resubmit -f /etc/pki/tls/certs/webapp.crt
 getcert resubmit -i 20240101120000
 ```
 
+### 5.6 Renewal Failure Recovery
+
+If a tracked certificate enters the renewal window but does not return to `MONITORING`, treat it like an incident before the certificate actually expires.
+
+```bash
+# 1. Inspect the failing request in detail
+getcert list -i 20240101120000
+
+# 2. Retry submission and restart certmonger if the helper is stuck
+getcert resubmit -i 20240101120000
+systemctl restart certmonger
+
+# 3. Review helper and CA errors
+journalctl -u certmonger --since "1 hour ago"
+journalctl -u pki-tomcatd@pki-tomcat --since "1 hour ago"
+
+# 4. If the certificate is already expired, request a replacement immediately
+getcert request -f /etc/pki/tls/certs/webapp.crt \
+  -k /etc/pki/tls/private/webapp.key \
+  -N CN=webapp.example.com \
+  -D webapp.example.com \
+  -K HTTP/webapp.example.com \
+  -T caIPAserviceCert \
+  -C "systemctl reload httpd"
+```
+
+> Do not assume service deletion revokes certificates automatically. Revoke compromised or abandoned certificates explicitly with `ipa cert-revoke` and then reload the affected service.
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -532,6 +583,26 @@ getcert list -f /etc/pki/tls/certs/webapp.crt
 openssl x509 -in /etc/pki/tls/certs/webapp.crt -text -noout \
   | grep -E "(Subject:|Issuer:|Not Before|Not After)"
 ```
+
+### 6.3 Tracking Certificates in NSS Databases
+
+Many built-in IPA services store certificates in NSS databases instead of PEM files. Track those entries directly so renewal automation matches the actual service storage format.
+
+```bash
+# Track the 389-DS Server-Cert entry in the directory server NSS database
+getcert start-tracking \
+  -d /etc/dirsrv/slapd-EXAMPLE-COM \
+  -n Server-Cert \
+  -C "systemctl restart dirsrv@EXAMPLE-COM.service"
+
+# Inspect the tracking entry
+getcert list -d /etc/dirsrv/slapd-EXAMPLE-COM -n Server-Cert
+
+# Force a renewal test when you need to validate the workflow
+getcert resubmit -d /etc/dirsrv/slapd-EXAMPLE-COM -n Server-Cert
+```
+
+> NSS-backed services usually need a restart or service-specific reload after renewal because the certificate nickname stays the same while the underlying object changes.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -655,6 +726,16 @@ ipa service-del HTTP/webapp.example.com
 > 🔁 **Next:** Continue with [Module 10 — Certificate Management: Advanced](10_certificate_management_advanced.md)
 > to explore sub-CAs, custom profiles, OCSP, CRL management, external CA chaining,
 > certmonger hooks, and FIPS-mode constraints.
+
+
+---
+
+## Key Takeaways
+
+- Certificate issuance is policy-driven, not just a signing operation.
+- Certmonger is the operational glue that turns certificate issuance into renewal automation.
+- Post-save hooks matter because many services must reload to use new certs.
+- Recovery guidance is essential when automated renewal does not return to MONITORING.
 
 [↑ Back to TOC](#table-of-contents)
 

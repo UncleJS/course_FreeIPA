@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Host Enrollment Overview](#1-host-enrollment-overview)
   - [1.1 What ipa-client-install Does](#11-what-ipa-client-install-does)
   - [1.2 Pre-Enrollment Requirements](#12-pre-enrollment-requirements)
@@ -27,6 +29,25 @@
 - [7. Host-Level Certificates](#7-host-level-certificates)
 - [8. Unenrolling a Client](#8-unenrolling-a-client)
 - [9. Lab — Client Enrollment Walkthrough](#9-lab--client-enrollment-walkthrough)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 04 and create at least one non-admin user in Module 03.
+- Administrative access to both the IPA server and the client host.
+- Working DNS and NTP between the client and the IPA environment.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Enroll a Linux host into IPA using admin credentials or an OTP.
+- Explain what SSSD, PAM, NSS, and certmonger configure during enrollment.
+- Test online and offline authentication behavior safely.
+- Manage host groups and host-level certificates for enrolled systems.
 
 ---
 
@@ -113,6 +134,8 @@ ipa-client-install \
 
 > 📝 Using `--random` to generate a one-time enrollment password is the **recommended
 > production approach**. Admin credentials are never transmitted to the client host.
+
+> 📝 In the beginner path, `--server=ipa.example.com` points at the single IPA server. In multi-server labs, use `ipa1.example.com` or a stable alias that resolves to the active IPA node.
 
 ### 2.3 Enrollment Sequence
 
@@ -281,20 +304,27 @@ flowchart TD
     M -->|Yes| N[✅ Offline login\nNo Kerberos ticket\nNo SSO]
 ```
 
-> 📝 Offline login gives shell access but **no Kerberos ticket**. Services requiring
-> Kerberos (e.g., `sudo` rules that require online lookup, NFS with Kerberos) may
-> not work until the IPA server is reachable again.
+> 📝 Offline login gives shell access but **no Kerberos ticket**. The most recent successful online lookup determines what SSSD can still reuse:
+> - Cached credentials can still allow a user to log in locally.
+> - Cached HBAC decisions can still allow or deny a login until the cache expires.
+> - `sudo` policy that was never cached, or that needs a fresh lookup, usually fails until IPA is reachable again.
+> - Kerberos-backed services such as NFSv4 with Kerberos still fail because no new TGT is issued.
 
 ```bash
-# Test offline behaviour by simulating IPA server unreachable
-# (on the client, temporarily block IPA server using firewall-cmd)
-sudo firewall-cmd --add-rich-rule='rule family="ipv4" destination address="192.168.1.10" drop'
-# Now attempt login — should use cached credentials
-# Re-enable (remove the block):
-sudo firewall-cmd --remove-rich-rule='rule family="ipv4" destination address="192.168.1.10" drop'
+# Prefer a reversible route blackhole instead of modifying firewalld policy
+# Adjust the IP if your active IPA server is ipa1.example.com or a VIP
+sudo ip route add blackhole 192.168.1.10/32
 
-# Check how long offline credentials last
+# Now test with a user who has already logged in successfully while online
+klist          # should show no new TGT after an offline login
+sudo -l        # may fail if sudo policy needs a fresh IPA lookup
+
+# Re-enable access to the IPA server
+sudo ip route del blackhole 192.168.1.10/32
+
+# Check how long offline credentials and cached policy survive
 grep offline_credentials /etc/sssd/sssd.conf
+grep cache_credentials /etc/sssd/sssd.conf
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -527,6 +557,16 @@ id jdoe
 systemctl restart sssd
 tail -f /var/log/sssd/sssd_example.com.log
 ```
+
+
+---
+
+## Key Takeaways
+
+- Enrollment is successful only when DNS, time, and host identity all line up.
+- SSSD caching improves resilience but changes what still works during outages.
+- OTP-based enrollment is safer than reusing the admin password on clients.
+- Host enrollment is the bridge from identity setup to policy enforcement.
 
 [↑ Back to TOC](#table-of-contents)
 

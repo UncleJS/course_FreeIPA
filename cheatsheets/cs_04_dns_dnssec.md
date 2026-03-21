@@ -18,6 +18,7 @@
 - [Reverse Zones](#reverse-zones)
 - [DNS Forwarders](#dns-forwarders)
 - [DNSSEC Operations](#dnssec-operations)
+- [KSK Rollover Checklist](#ksk-rollover-checklist)
 - [SRV Records](#srv-records)
 - [DNS Diagnostics](#dns-diagnostics)
 - [named Service](#named-service)
@@ -240,6 +241,35 @@ sudo ods-enforcer key list --zone=example.com --verbose
 
 ---
 
+## KSK Rollover Checklist
+
+```bash
+# Record the current signed state first
+ipa dnszone-show example.com --all
+dig +dnssec example.com SOA @ipa1.example.com
+
+# Trigger a new key set and verify a second key appears
+ipa dnszone-mod example.com --dnssec=false
+ipa dnszone-mod example.com --dnssec=true
+ipa dnskey-find example.com
+
+# Capture the DS record that must be published in the parent zone
+ipa dnszone-show example.com --all | grep -i DS
+
+# Validate from outside IPA after the parent publishes the new DS
+dig +dnssec example.com SOA @8.8.8.8
+dig +trace +dnssec example.com
+
+# Watch signing/key events until the overlap window finishes
+sudo journalctl -u named | grep -i "dnssec\|sign\|key"
+```
+
+> Keep the old DS record published until the new DS is visible everywhere. Removing the old DS too early causes validation failures.
+
+[↑ Back to TOC](#table-of-contents)
+
+---
+
 ## SRV Records
 
 ```bash
@@ -383,6 +413,10 @@ dig +short external.domain @ipa1.example.com  # test via IPA
 # Check if zone is properly signed
 dig +dnssec example.com SOA @localhost | grep -E "RRSIG|NSEC"
 sudo ods-enforcer key list --zone=example.com
+
+# If signatures exist but validation still fails, verify the parent DS record
+dig +short example.com DS @8.8.8.8
+dig +trace +dnssec example.com
 
 # Check DNSSEC healthcheck
 sudo ipa-healthcheck --source ipahealthcheck.ipa.dns

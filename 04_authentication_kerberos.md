@@ -9,6 +9,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Kerberos Fundamentals](#1-kerberos-fundamentals)
   - [1.1 Why Kerberos?](#11-why-kerberos)
   - [1.2 Kerberos Actors](#12-kerberos-actors)
@@ -36,6 +38,25 @@
 - [9. kinit Decision Tree](#9-kinit-decision-tree)
 - [10. Common Kerberos Errors](#10-common-kerberos-errors)
 - [11. Lab — Kerberos Authentication Exercises](#11-lab--kerberos-authentication-exercises)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 03.
+- General understanding of usernames, passwords, and service access on Linux.
+- A working IPA server with test users available for authentication exercises.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Explain the TGT and service-ticket flow used by Kerberos.
+- Use kinit, klist, kvno, and keytabs in practical scenarios.
+- Configure and validate password policy, OTP, and related controls.
+- Troubleshoot common Kerberos failure modes.
 
 ---
 
@@ -717,6 +738,16 @@ ipa user-unlock bob
 # Verify unlock
 kinit bob   # should succeed with correct password
 ```
+
+
+---
+
+## Key Takeaways
+
+- Kerberos success depends heavily on time sync, DNS, and correct principals.
+- Keytabs are powerful and should be handled like privileged secrets.
+- OTP and policy controls improve assurance but increase operational complexity.
+- Client enrollment and SSSD rely on the Kerberos concepts covered here.
 
 [↑ Back to TOC](#table-of-contents)
 

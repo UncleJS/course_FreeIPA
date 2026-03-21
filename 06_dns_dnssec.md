@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. DNS Architecture in FreeIPA](#1-dns-architecture-in-freeipa)
   - [1.1 BIND-DLZ Integration](#11-bind-dlz-integration)
   - [1.2 Why Use Integrated DNS?](#12-why-use-integrated-dns)
@@ -30,6 +32,25 @@
   - [7.3 DNSSEC Validation Chain](#73-dnssec-validation-chain)
   - [7.4 DNSSEC Key Rollover](#74-dnssec-key-rollover)
 - [8. Lab — DNS and DNSSEC Exercises](#8-lab--dns-and-dnssec-exercises)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 05.
+- Comfort with basic DNS record types, zones, and recursive resolution.
+- An IPA deployment with integrated DNS enabled.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Manage zones, records, forwarders, and dynamic updates in IPA.
+- Explain how IPA stores DNS data and serves it through BIND.
+- Describe how DNSSEC signing and validation work in the integrated stack.
+- Operate a basic DNSSEC rollover workflow without breaking trust.
 
 ---
 
@@ -470,6 +491,36 @@ ipa dnszone-show example.com --all | grep -i DS
 journalctl -u named | grep -i "dnssec\|sign\|key"
 ```
 
+### 7.5 Worked KSK Rollover Checklist
+
+Use this sequence when the parent zone is external and you must coordinate DS updates with a registrar or upstream DNS team.
+
+```bash
+# 1. Record the current DNSSEC state before changing anything
+ipa dnszone-show example.com --all
+dig +dnssec example.com SOA @ipa1.example.com
+
+# 2. Trigger the new KSK and confirm a second key appears
+ipa dnszone-mod example.com --dnssec=false
+ipa dnszone-mod example.com --dnssec=true
+ipa dnskey-find example.com
+
+# 3. Capture the new DS record for the parent zone
+ipa dnszone-show example.com --all | grep -i DS
+
+# 4. Submit the new DS record to the parent zone or registrar
+# Keep the old DS published until the new one is visible everywhere.
+
+# 5. Validate the new chain of trust from outside the IPA server
+dig +dnssec example.com SOA @8.8.8.8
+dig +trace +dnssec example.com
+
+# 6. Watch signing logs until the new key is active and the old key ages out
+journalctl -u named | grep -i "dnssec\|sign\|key"
+```
+
+> Keep both DS records published during the overlap window. Removing the old DS too early breaks validation for resolvers that have not yet observed the new KSK.
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -532,6 +583,16 @@ dig @ipa1.example.com _kerberos._tcp.EXAMPLE.COM SRV
 dig @ipa1.example.com _kerberos._udp.EXAMPLE.COM SRV
 dig @ipa1.example.com _kpasswd._tcp.EXAMPLE.COM SRV
 ```
+
+
+---
+
+## Key Takeaways
+
+- Integrated DNS simplifies identity-aware service discovery for IPA clients.
+- DNS mistakes cascade into Kerberos, enrollment, and trust failures quickly.
+- DNSSEC adds authenticity but also introduces parent-zone coordination work.
+- Documenting rollover steps is essential before enabling DNSSEC in production.
 
 [↑ Back to TOC](#table-of-contents)
 

@@ -150,6 +150,11 @@ sudo ldapsearch -x -H ldap://localhost \
 sudo grep -iE "repl error|replication.*fail|consumer" \
     /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors | tail -20
 
+# Lag guidance:
+# < 60s   = healthy target on a stable LAN
+# 1-5 min = possible during bulk imports or temporary peer load
+# > 5 min = investigate network, backlog, busy peers, or topology bottlenecks
+
 # Check all agreements and their status
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
@@ -219,6 +224,7 @@ sudo ipa-csreplica-manage -p 'DM_Password' re-initialize \
 
 # Check which server is CRL master
 ipa config-show | grep "IPA CA renewal master"
+sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 
 # Move CRL master to another server
 ipa config-mod --ca-renewal-master-server=ipa2.example.com
@@ -238,6 +244,13 @@ sudo sed -i \
     's/ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
     /etc/pki/pki-tomcat/ca/CS.cfg
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
+
+# Validate the new master is actually publishing fresh CRLs
+curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
+    openssl crl -inform DER -noout -lastupdate -nextupdate
+
+# Final check: only one host should still show enable=true
+sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 ```
 
 [↑ Back to TOC](#table-of-contents)

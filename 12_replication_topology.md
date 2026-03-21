@@ -7,6 +7,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Replication Concepts](#1-replication-concepts)
 - [2. Topology Architecture](#2-topology-architecture)
 - [3. Replication Agreements and Segments](#3-replication-agreements-and-segments)
@@ -19,6 +21,25 @@
 - [10. Decommissioning a Replica](#10-decommissioning-a-replica)
 - [11. Disaster Recovery](#11-disaster-recovery)
 - [12. Lab — Multi-Master Replication Setup](#12-lab--multi-master-replication-setup)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 11.
+- Access to at least two IPA servers for replica testing.
+- Basic familiarity with topology design, CA roles, and failure domains.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Design an IPA topology that balances availability and operational simplicity.
+- Install replicas with optional CA and DNS roles.
+- Monitor replication status, lag, and conflicts with the right tools.
+- Move critical roles and recover or decommission replicas safely.
 
 ---
 
@@ -432,6 +453,10 @@ sudo grep -r "ca.crl.MasterCRL.enable" \
 ### 6.3 Moving the CRL Master
 
 ```bash
+# Record the current owner before making changes
+ipa config-show | grep "IPA CA renewal master"
+sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
+
 # Move CRL master to ipa2
 ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
@@ -445,12 +470,17 @@ sudo sed -i \
     's/^ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
     /etc/pki/pki-tomcat/ca/CS.cfg
 
-# Restart pki-tomcatd on both
+# Restart pki-tomcatd on both servers and verify freshness
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
+curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
+    openssl crl -inform DER -noout -lastupdate -nextupdate
 
-# Verify
+# Verify only one master remains enabled
 ipa config-show | grep "CA renewal master"
+sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 ```
+
+> Only one server should have `ca.crl.MasterCRL.enable=true` after the move. Validate the published CRL timestamps before decommissioning the old master.
 
 ### 6.4 CA Renewal Master
 
@@ -563,6 +593,12 @@ sudo ipa-replica-manage -p 'DM_Password' status ipa2.example.com
 sudo ipa-replica-manage -p 'DM_Password' force-sync \
     --from=ipa1.example.com
 ```
+
+Use lag thresholds with workload context:
+- Under 60 seconds is a healthy target for routine writes in a stable LAN.
+- One to five minutes can happen during bulk imports, certificate churn, or temporary peer load.
+- More than five minutes deserves investigation for network delay, busy replicas, backlog growth, or topology bottlenecks.
+
 
 ### 8.3 389-DS Replication Monitoring
 
@@ -1012,6 +1048,16 @@ ls -lh /var/lib/ipa/backup/
 # Simulate restore (on a test host, not production)
 # sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 ```
+
+
+---
+
+## Key Takeaways
+
+- Replication topology is an operational design choice, not just an install step.
+- CA and CRL roles need explicit validation whenever they move between replicas.
+- Lag thresholds only make sense when you understand the write volume behind them.
+- Disaster recovery is much easier when backup and topology hygiene are already in place.
 
 [↑ Back to TOC](#table-of-contents)
 

@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. The Three Roles: Server, Replica, Client](#1-the-three-roles-server-replica-client)
   - [1.1 IPA Server](#11-ipa-server)
   - [1.2 IPA Replica](#12-ipa-replica)
@@ -24,6 +26,25 @@
 - [5. Directory Information Tree (DIT) Layout](#5-directory-information-tree-dit-layout)
 - [6. Replication Overview](#6-replication-overview)
 - [7. Lab — Inspect a Running IPA Server](#7-lab--inspect-a-running-ipa-server)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Module 00 or already understand the main FreeIPA components.
+- Basic familiarity with Linux services, networking, and DNS/Kerberos terminology.
+- Comfort reading diagrams and following multi-step request flows.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Distinguish IPA server, replica, and client roles.
+- Trace how the IPA API interacts with LDAP, Kerberos, DNS, and PKI services.
+- Explain the purpose of the LDAP DIT and replicated data paths.
+- Describe how a request moves from client tooling to backend services.
 
 ---
 
@@ -352,6 +373,16 @@ dig +short _ldap._tcp.example.com SRV
 dig +short _kerberos._tcp.EXAMPLE.COM SRV
 dig +short _kerberos._udp.EXAMPLE.COM SRV
 ```
+
+
+---
+
+## Key Takeaways
+
+- FreeIPA depends on several tightly coupled services with a shared data model.
+- Replicas extend availability but preserve the same logical identity domain.
+- The LDAP tree structure explains where users, policies, and DNS data live.
+- Understanding request flow makes later troubleshooting much easier.
 
 [↑ Back to TOC](#table-of-contents)
 

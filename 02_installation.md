@@ -9,6 +9,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Pre-Installation Checklist](#1-pre-installation-checklist)
   - [1.1 Hostname and DNS](#11-hostname-and-dns)
   - [1.2 Time Synchronisation](#12-time-synchronisation)
@@ -25,6 +27,25 @@
 - [6. Firewall Configuration](#6-firewall-configuration)
 - [7. Uninstalling FreeIPA](#7-uninstalling-freeipa)
 - [8. Lab — Full Install Walkthrough](#8-lab--full-install-walkthrough)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 and 01 first.
+- Ability to manage RHEL packages, firewalld, Chrony, and static networking.
+- Control of DNS records and the server hostname before running the installer.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Verify the installation prerequisites that FreeIPA depends on.
+- Install the required packages and run ipa-server-install safely.
+- Validate service health after the initial deployment.
+- Recognize the most common installation failure signals.
 
 ---
 
@@ -394,6 +415,8 @@ ipa-server-install --uninstall --unattended
 
 This lab walks through a complete installation from a fresh RHEL 10 minimal install.
 
+> Note: This walkthrough uses `ipa.example.com` as the single-server endpoint. In later replication labs, treat this same host as `ipa1.example.com` and keep `ipa.example.com` as the stable alias or CNAME.
+
 ```bash
 # ── STEP 1: System preparation ──────────────────────────────────────────────
 
@@ -453,6 +476,32 @@ ipa-healthcheck --output-type human 2>&1 | grep -v SUCCESS
 curl -s https://ipa.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
 ```
 
+### 8.1 If ipa-server-install fails, check these first
+
+```bash
+# 1. DNS and hostname consistency
+hostname -f
+getent hosts ipa.example.com
+getent hosts 192.168.1.10
+
+# 2. Time sync and clock skew
+timedatectl status
+chronyc tracking
+
+# 3. Required ports and local services
+ss -tulpn | grep -E ':53 |:80 |:88 |:123 |:389 |:443 |:464 |:636 |:7389 '
+firewall-cmd --list-services
+
+# 4. Installer and service logs
+journalctl -u ipa-server-install --since '30 minutes ago'
+journalctl -u dirsrv@EXAMPLE-COM.service -u krb5kdc -u httpd --since '30 minutes ago'
+
+# 5. Disk space for Dogtag, LDAP, and temporary files
+df -h / /var /tmp
+```
+
+> If DNS, time, and disk space look healthy, re-run the installer only after reading the failure point in the logs. Avoid guessing and re-running blindly.
+
 **Expected final state:**
 - `ipactl status` shows all 8 services as `RUNNING` (dirsrv, krb5kdc, kadmin, pki-tomcatd, named, httpd, certmonger, sssd)
 - `kinit admin` succeeds
@@ -461,6 +510,16 @@ curl -s https://ipa.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
 
 > 🔁 **Next:** Enroll your first client in [Module 05](05_host_enrollment_sssd.md).
 > Before that, create users and groups in [Module 03](03_identity_users_groups.md).
+
+
+---
+
+## Key Takeaways
+
+- Most installation failures trace back to DNS, hostname, time, or ports.
+- A clean post-install verification is as important as the install command itself.
+- Use ipa-healthcheck immediately after deployment to catch hidden issues.
+- Create users and groups before enrolling clients in later modules.
 
 [↑ Back to TOC](#table-of-contents)
 

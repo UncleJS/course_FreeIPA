@@ -274,6 +274,16 @@ sudo ldapsearch -x -H ldap://localhost \
 ## Troubleshooting Access Issues
 
 ```bash
+# If the problem is host login or sudo access, check policy order first:
+# 1. HBAC decides whether the user gets a session on the host at all.
+# 2. Sudo rules apply only after login succeeds.
+
+# Login gate first
+ipa hbactest --user=jsmith --host=server1.example.com --service=sshd
+
+# Then inspect sudo policy from the client host
+sudo -l -U jsmith
+
 # User can't perform action — determine what permissions are needed
 
 # 1. Check what roles user is in

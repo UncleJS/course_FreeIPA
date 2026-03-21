@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Host-Based Access Control (HBAC)](#1-host-based-access-control-hbac)
   - [1.1 HBAC Model](#11-hbac-model)
   - [1.2 Default HBAC Behaviour](#12-default-hbac-behaviour)
@@ -21,7 +23,27 @@
   - [2.3 Sudo Commands and Command Groups](#23-sudo-commands-and-command-groups)
   - [2.4 Sudo Options](#24-sudo-options)
   - [2.5 Sudo Rule Lookup via SSSD](#25-sudo-rule-lookup-via-sssd)
+- [2.6 HBAC and Sudo Precedence](#26-hbac-and-sudo-precedence)
 - [3. Lab — HBAC and Sudo Exercises](#3-lab--hbac-and-sudo-exercises)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 06.
+- A set of enrolled hosts, users, and groups to use in policy testing.
+- Basic understanding of Linux login flow and sudo behavior.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Model who can log in to which hosts with HBAC.
+- Define sudo rules for controlled privilege escalation.
+- Test policy behavior before removing permissive defaults.
+- Explain how HBAC and sudo decisions interact during login and command execution.
 
 ---
 
@@ -352,6 +374,26 @@ systemctl restart sssd
 journalctl -u sssd | grep -i sudo
 ```
 
+### 2.6 HBAC and Sudo Precedence
+
+HBAC decides whether the user gets a session on the host at all. Sudo rules are evaluated only after login succeeds.
+
+| Scenario | HBAC result | Sudo result | User experience |
+|----------|-------------|-------------|-----------------|
+| User not allowed to SSH to `web01` | Deny | Not evaluated | Login fails before a shell starts |
+| User can log in to `web01` but lacks a sudo rule | Allow | Deny | Login succeeds, `sudo` is denied |
+| User can log in and has a matching sudo rule | Allow | Allow | Login succeeds and approved commands work |
+
+```bash
+# Example 1: test the login gate first
+ipa hbactest --user=jdoe --host=web01.example.com --service=sshd
+
+# Example 2: after a successful login, inspect the sudo policy view
+sudo -l
+```
+
+> If HBAC denies the session, troubleshooting sudo is wasted effort because the PAM login path never reaches sudo policy evaluation.
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -437,6 +479,16 @@ ipa sudorule-add-option ops-web-restart --sudooption="!authenticate"
 
 # ipa hbacrule-enable allow_all
 ```
+
+
+---
+
+## Key Takeaways
+
+- HBAC gates session access before sudo rules are even considered.
+- Policy testing with hbactest and sudo -l prevents broad accidental lockouts.
+- Host groups and user groups keep policy manageable as environments grow.
+- These policy patterns feed directly into later delegation and trust scenarios.
 
 [↑ Back to TOC](#table-of-contents)
 

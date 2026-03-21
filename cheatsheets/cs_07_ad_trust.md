@@ -20,6 +20,7 @@
 - [HBAC and Sudo for AD Users](#hbac-and-sudo-for-ad-users)
 - [User Overrides and ID Views](#user-overrides-and-id-views)
 - [Winbind and SSSD Diagnostics](#winbind-and-sssd-diagnostics)
+- [Trust Rebuild Pre-Flight](#trust-rebuild-pre-flight)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -317,6 +318,33 @@ sudo tail -f /var/log/sssd/sssd_ad.example.com.log
 
 ---
 
+## Trust Rebuild Pre-Flight
+
+```bash
+# Confirm DNS can still find usable AD controllers
+dig +short SRV _ldap._tcp.ad.example.com
+dig +short SRV _kerberos._tcp.ad.example.com
+
+# Confirm IPA trust services are healthy
+sudo systemctl status smb winbind
+sudo wbinfo --ping-dc --domain=ad.example.com
+
+# Refresh trust metadata before recreating anything
+kinit admin
+ipa trust-find
+ipa trust-fetch-domains ad.example.com
+
+# Only after upstream checks pass, clear stale caches
+sudo sss_cache -E -d ad.example.com
+sudo systemctl restart sssd winbind
+```
+
+> Rebuilding the trust should be the last resort. DNS changes, DC failover, or stale caches are far more common than a broken trust object.
+
+[↑ Back to TOC](#table-of-contents)
+
+---
+
 ## Troubleshooting
 
 ```bash
@@ -343,6 +371,9 @@ sudo systemctl restart sssd
 # Trust breaks after DC change in AD
 ipa trust-fetch-domains ad.example.com
 sudo wbinfo --ping-dc --domain=ad.example.com
+sudo wbinfo --dc-info=ad.example.com
+sudo sss_cache -E -d ad.example.com
+sudo systemctl restart winbind sssd
 
 # Access denied after login
 ipa hbactest --user=aduser1@ad.example.com \

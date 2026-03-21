@@ -10,6 +10,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Sub-CAs](#1-sub-cas)
   - [1.1 Sub-CA Topology](#11-sub-ca-topology)
   - [1.2 Creating Sub-CAs](#12-creating-sub-cas)
@@ -33,6 +35,25 @@
 - [7. FIPS Mode and Certificate Constraints](#7-fips-mode-and-certificate-constraints)
 - [8. Certificate Expiry Monitoring](#8-certificate-expiry-monitoring)
 - [9. Lab — Advanced Certificate Operations](#9-lab--advanced-certificate-operations)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 09.
+- Comfort with Dogtag concepts, certificate profiles, and certmonger.
+- General familiarity with ACME, OCSP, and FIPS terminology.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Create and reason about sub-CAs and custom certificate profiles.
+- Explain when ACME, OCSP, and external CA workflows fit an IPA deployment.
+- Evaluate certificate operations against RHEL 10 crypto and FIPS requirements.
+- Extend certificate management beyond the default server lifecycle.
 
 ---
 
@@ -727,6 +748,16 @@ ipa service-del HTTP/api.example.com
 ipa ca-del webapp-ca
 ipa certprofile-del shortTermCert
 ```
+
+
+---
+
+## Key Takeaways
+
+- Advanced PKI features add flexibility, but they also increase governance requirements.
+- ACME and custom profiles should be introduced only after the default CA path is stable.
+- FIPS and external trust requirements must be designed into certificate workflows early.
+- Operational health checks matter more as the PKI footprint grows.
 
 [↑ Back to TOC](#table-of-contents)
 

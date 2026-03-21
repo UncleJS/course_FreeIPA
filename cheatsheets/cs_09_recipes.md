@@ -5,6 +5,8 @@
 
 > 12 step-by-step runbooks for production FreeIPA operations on RHEL 10.
 
+> 📝 Naming convention: use `ipa.example.com` as the stable single-server endpoint or alias. Multi-server recipes call out `ipa1.example.com` and `ipa2.example.com` explicitly.
+
 > 🔁 **See also (reference guide — spans all modules):** [Module 02 — Installation](../02_installation.md) · [Module 05 — Host Enrollment](../05_host_enrollment_sssd.md) · [Module 09 — Certificates: Fundamentals](../09_certificate_management_fundamentals.md) · [Module 11 — AD Trust](../11_ad_trust.md) · [Module 12 — Replication](../12_replication_topology.md) · [Module 13 — Security Hardening](../13_security_hardening.md) · [Module 14 — Troubleshooting](../14_troubleshooting.md) · [Module 15 — Upgrade & Migration](../15_upgrade_migration.md)
 
 ---
@@ -375,6 +377,10 @@ getcert request \
 # Monitor request
 getcert list
 watch -n5 'getcert list | grep -E "Request ID|status|expires"'
+
+# If a tracked request stalls in the renewal window
+getcert list -i <request-id>
+journalctl -u certmonger --since "1 hour ago"
 ```
 
 ### Step 4 — Verify certificate
@@ -409,6 +415,8 @@ getcert list | grep -E "CA:|track"
 getcert resubmit -f /etc/nginx/ssl/server.crt
 getcert list | grep status
 ```
+
+> If the request does not return to `MONITORING`, treat it like an incident before the certificate expires. Review `certmonger` and `pki-tomcatd` logs together.
 
 ### Renewal Flow
 
@@ -494,6 +502,9 @@ ipa trust-add \
 ```bash
 ipa trust-fetch-domains ad.corp
 ipa trust-show ad.corp
+
+# If AD recently changed DCs or SRV records
+wbinfo --dc-info=ad.corp
 ```
 
 ### Step 6 — Verify AD user resolution
@@ -1133,6 +1144,13 @@ ipa topologysegment-find dc=example,dc=com
 ```
 
 ### Step 3 — Upgrade replicas first (non-CA replicas first, then CA replicas)
+
+Score replicas before starting:
+- `1` = low client load, no special roles
+- `3` = heavy client or DNS traffic
+- `5` = CA renewal/CRL duties or other critical dependencies
+
+Start with the lowest-score replica and keep the highest-score replica for last.
 
 ```bash
 # On ipa-replica1.example.com (non-CA replica)

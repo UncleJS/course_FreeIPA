@@ -7,6 +7,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Concepts and Terminology](#1-concepts-and-terminology)
 - [2. Trust Architecture](#2-trust-architecture)
 - [3. Prerequisites](#3-prerequisites)
@@ -19,6 +21,25 @@
 - [10. SID Filtering and Selective Authentication](#10-sid-filtering-and-selective-authentication)
 - [11. Troubleshooting AD Trust](#11-troubleshooting-ad-trust)
 - [12. Lab — Build and Verify an AD Trust](#12-lab--build-and-verify-an-ad-trust)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 10.
+- Working knowledge of AD concepts such as domains, SIDs, DNS, and Kerberos.
+- Administrative access to both the IPA environment and a test AD forest.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Prepare DNS, firewall, and time prerequisites for a trust.
+- Establish and validate an IPA-to-AD trust.
+- Resolve AD users and groups correctly on IPA-enrolled hosts.
+- Apply HBAC, sudo, and role delegation patterns to trusted AD identities.
 
 ---
 
@@ -947,6 +968,50 @@ kvno -S host server1.example.com
 | Empty `wbinfo -u` output | DNS SRV lookup failure | Fix conditional forwarder |
 | `Access denied` after login | HBAC rule missing | Run `ipa hbactest` and add rule |
 
+### 11.7 Trust Rebuild Pre-Flight Checklist
+
+Before deleting and recreating a trust, confirm that the original failure is not just stale DNS, stale cache, or a moved domain controller.
+
+```bash
+# 1. DNS and DC discovery
+dig +short SRV _ldap._tcp.ad.example.com
+dig +short SRV _kerberos._tcp.ad.example.com
+
+# 2. IPA-side trust services
+systemctl status smb winbind
+wbinfo --ping-dc --domain=ad.example.com
+
+# 3. Kerberos and trust metadata
+kinit admin
+ipa trust-find
+ipa trust-fetch-domains ad.example.com
+
+# 4. Client-side cache cleanup only after the upstream checks pass
+sss_cache -d ad.example.com -E
+systemctl restart sssd
+```
+
+### 11.8 After AD DC Failover or DNS Changes
+
+If the AD team moves domain controllers, changes SRV records, or replaces IP addresses, trust symptoms often look like random login failures even though the trust object still exists.
+
+```bash
+# Confirm the new SRV answers and the chosen DC
+dig +short SRV _ldap._tcp.ad.example.com
+wbinfo --dc-info=ad.example.com
+
+# Refresh discovered domains and clear stale identity data
+ipa trust-fetch-domains ad.example.com
+sss_cache -d ad.example.com -E
+systemctl restart winbind sssd
+
+# Re-test user lookup and cross-realm auth
+id aduser1@ad.example.com
+KRB5_TRACE=/dev/stderr kinit aduser1@AD.EXAMPLE.COM
+```
+
+> Rebuilding the trust should be the last resort. Most post-failover issues are fixed by restoring SRV visibility, refreshing domain data, and clearing stale caches in the right order.
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -1089,6 +1154,16 @@ ipa group-del ipa_ad_users
 ipa group-del ext_ad_users
 ipa hbacrule-del allow_ad_ssh
 ```
+
+
+---
+
+## Key Takeaways
+
+- AD trust success depends on DNS quality and consistent encryption support on both sides.
+- ID ranges and caching behavior explain many trust-resolution surprises.
+- Operational trust ownership includes Samba, winbind, SSSD, and Kerberos together.
+- Have a recovery checklist ready before recreating or modifying a trust in production.
 
 [↑ Back to TOC](#table-of-contents)
 

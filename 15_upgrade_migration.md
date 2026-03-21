@@ -7,10 +7,13 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. Upgrade Philosophy and Strategy](#1-upgrade-philosophy-and-strategy)
 - [2. Pre-Upgrade Checklist](#2-pre-upgrade-checklist)
 - [3. RHEL Minor-Version Upgrade with IPA](#3-rhel-minor-version-upgrade-with-ipa)
 - [4. FreeIPA In-Place Upgrade](#4-freeipa-in-place-upgrade)
+- [4.4 Re-Run or Roll Back Decision](#44-re-run-or-roll-back-decision)
 - [5. Rolling Replica Upgrade](#5-rolling-replica-upgrade)
 - [6. Post-Upgrade Verification](#6-post-upgrade-verification)
 - [7. Migrating from OpenLDAP](#7-migrating-from-openldap)
@@ -19,6 +22,25 @@
 - [10. Migration from Active Directory](#10-migration-from-active-directory)
 - [11. Rollback Procedures](#11-rollback-procedures)
 - [12. Lab — Rolling Upgrade and Migration Dry-Run](#12-lab--rolling-upgrade-and-migration-dry-run)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 14.
+- Verified backups, healthy replication, and a maintenance window or lab environment.
+- Comfort with package management, rollback planning, and data migration concepts.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Plan and execute rolling upgrades without breaking replica availability.
+- Verify post-upgrade health and decide when to continue or roll back.
+- Use the supported migration tools and patterns for OpenLDAP, NIS, IPA, and AD.
+- Translate upgrade strategy into concrete go/no-go checks.
 
 ---
 
@@ -274,6 +296,21 @@ sudo ipa-server-upgrade --debug
 # Usually requires Red Hat support — do not manually edit schema
 ```
 
+### 4.4 Re-Run or Roll Back Decision
+
+Use a simple go/no-go rule after a failed in-place upgrade:
+
+- Re-run `ipa-server-upgrade` only after the underlying cause is identified and corrected.
+- Roll back to backup when core services stay down, schema changes are incomplete, or replication no longer verifies cleanly.
+- Do not continue to the next replica until the current node is healthy and post-upgrade checks pass.
+
+```bash
+# Minimum go/no-go checks before proceeding
+ipactl status
+ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+ipa topologysuffix-verify domain
+```
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -291,7 +328,18 @@ graph TD
     PLAN --> R1 --> R2 --> R3
 ```
 
-### 5.2 Step-by-Step Rolling Upgrade
+### 5.2 Upgrade Order Decision Matrix
+
+| Replica trait | Score | Upgrade guidance |
+|--------------|-------|------------------|
+| Handles CRL or CA renewal master duties | 5 | Upgrade late, after other replicas are validated |
+| Serves most client traffic or DNS SRV weight | 3 | Upgrade after a quieter replica proves healthy |
+| Hosts unique integration points or external dependencies | 2 | Upgrade only after rollback is clear |
+| Low client load and no special roles | 1 | Best candidate for the first upgrade |
+
+Start with the lowest-score replica, keep the highest-score replica for last, and document why each server landed in that order before the maintenance window begins.
+
+### 5.3 Step-by-Step Rolling Upgrade
 
 ```bash
 ## === ON EACH REPLICA (one at a time) ===
@@ -339,7 +387,7 @@ ipa user-del postupgrade-test-$(hostname -s)
 # --- PROCEED TO NEXT REPLICA ---
 ```
 
-### 5.3 Mixed-Version Compatibility
+### 5.4 Mixed-Version Compatibility
 
 FreeIPA supports a brief **mixed-version window** during rolling upgrades. Within a single point-release series (e.g., 4.12.0 → 4.12.1), all replicas can continue to operate while upgrades are in progress.
 
@@ -923,6 +971,12 @@ ipa user-del lab-repl-test
 ### Lab 12.4 — Simulate OpenLDAP User Migration
 
 ```bash
+# In a real migration, prefer ipa migrate-ds against the source LDAP server:
+# ipa migrate-ds ldap://old-ldap.example.com \
+#   --user-container=ou=People \
+#   --group-container=ou=Groups \
+#   --with-compat
+
 # Create a test LDIF representing OpenLDAP export
 cat > /tmp/test-ldap-export.ldif << 'EOF'
 dn: uid=miguser1,ou=People,dc=old,dc=com
@@ -1004,6 +1058,16 @@ else:
     print("No regressions — upgrade successful ✓")
 EOF
 ```
+
+
+---
+
+## Key Takeaways
+
+- Successful upgrades start with health, backups, and a clear order of operations.
+- Not every failed upgrade should be forced forward; rollback criteria matter.
+- Migration tooling is safer than ad hoc imports when source systems are still active.
+- Lifecycle work is where operational discipline pays off the most.
 
 [↑ Back to TOC](#table-of-contents)
 

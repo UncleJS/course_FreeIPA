@@ -9,6 +9,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. RBAC Overview](#1-rbac-overview)
   - [1.1 The Three-Layer Model](#11-the-three-layer-model)
   - [1.2 How RBAC Differs from HBAC](#12-how-rbac-differs-from-hbac)
@@ -30,6 +32,25 @@
   - [6.2 Effective Permissions for a User](#62-effective-permissions-for-a-user)
 - [7. Building a Custom Role — End to End](#7-building-a-custom-role--end-to-end)
 - [8. Lab — RBAC Exercises](#8-lab--rbac-exercises)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 07.
+- Familiarity with user groups, host groups, and admin workflows in IPA.
+- Comfort using the ipa CLI to inspect and create policy objects.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Explain the relationship between permissions, privileges, and roles.
+- Create delegated administration patterns without over-granting access.
+- Use self-service rules where they fit operational needs.
+- Inspect effective rights and understand how ACIs back RBAC behavior.
 
 ---
 
@@ -596,6 +617,16 @@ ipa user-add baduser --first=Bad --last=User                  # should FAIL
 kinit admin
 ipa dnsrecord-del example.com lab-test --a-rec=192.168.1.99
 ```
+
+
+---
+
+## Key Takeaways
+
+- Delegation works best when permissions stay narrow and roles stay readable.
+- Built-in roles are useful references even when custom roles are required.
+- Self-service can reduce admin load but still needs clear guardrails.
+- RBAC knowledge becomes critical when certificate and trust permissions are introduced.
 
 [↑ Back to TOC](#table-of-contents)
 

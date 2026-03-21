@@ -8,6 +8,8 @@
 
 ## Table of Contents
 
+- [Recommended Background](#recommended-background)
+- [Learning Outcomes](#learning-outcomes)
 - [1. User Management](#1-user-management)
   - [1.1 User Attributes](#11-user-attributes)
   - [1.2 Creating Users](#12-creating-users)
@@ -27,6 +29,25 @@
 - [6. Staged Users and User Lifecycle](#6-staged-users-and-user-lifecycle)
 - [7. Password Policies](#7-password-policies)
 - [8. Lab — User and Group Operations](#8-lab--user-and-group-operations)
+- [Key Takeaways](#key-takeaways)
+
+
+---
+
+## Recommended Background
+
+- Complete Modules 00 through 02.
+- Basic understanding of POSIX users, groups, and UID/GID concepts.
+- An installed and healthy IPA server ready for identity data.
+
+## Learning Outcomes
+
+By the end of this module, you should be able to:
+
+- Create and manage users, groups, and group membership.
+- Explain automember rules and ID range behavior.
+- Apply consistent naming and lifecycle practices to identity objects.
+- Prepare accounts needed for client and policy labs.
 
 ---
 
@@ -557,6 +578,16 @@ ipa user-find --preserved=true
 ipa user-undel carol
 ipa user-show carol
 ```
+
+
+---
+
+## Key Takeaways
+
+- Identity data is the foundation for HBAC, sudo, RBAC, and certificate workflows.
+- Consistent UID/GID planning avoids conflict later in migrations and trusts.
+- Automember rules reduce manual administration when enrollment scales out.
+- The next modules build directly on the users and groups created here.
 
 [↑ Back to TOC](#table-of-contents)
 
