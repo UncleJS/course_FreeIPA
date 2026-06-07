@@ -53,13 +53,13 @@ By the end of this module, you should be able to:
 ```mermaid
 graph TD
     subgraph "IPA Domain: example.com / EXAMPLE.COM"
-        S1[IPA Server\nipa1.example.com\nKDC + CA + LDAP + DNS]
-        S2[IPA Replica\nipa2.example.com\nKDC + CA + LDAP + DNS]
-        S1 <-->|multi-master replication\n389-DS + Dogtag| S2
+        S1["IPA Server<br/>ipa1.example.com<br/>KDC + CA + LDAP + DNS"]
+        S2["IPA Replica<br/>ipa2.example.com<br/>KDC + CA + LDAP + DNS"]
+        S1 <-->|"multi-master replication<br/>389-DS + Dogtag"| S2
     end
-    C1[Linux Client\nweb01.example.com\nSSSD] -->|LDAP queries\nKerberos auth| S1
-    C2[Linux Client\ndb01.example.com\nSSSD] -->|LDAP queries\nKerberos auth| S2
-    C3[Linux Client\napp01.example.com\nSSSD] -->|failover| S1
+    C1["Linux Client<br/>web01.example.com<br/>SSSD"] -->|"LDAP queries<br/>Kerberos auth"| S1
+    C2["Linux Client<br/>db01.example.com<br/>SSSD"] -->|"LDAP queries<br/>Kerberos auth"| S2
+    C3["Linux Client<br/>client01.example.com<br/>SSSD"] -->|failover| S1
     C3 -->|failover| S2
 ```
 
@@ -71,7 +71,7 @@ The first IPA server installed is the **initial master**. It runs:
 |-----------|---------|------|
 | 389 Directory Server | `dirsrv@EXAMPLE-COM` | 389, 636 |
 | MIT Kerberos KDC | `krb5kdc` | 88 |
-| Kerberos kadmin | `kadmin` | 749 |
+| Kerberos kadmin | `kadmin` | — (not exposed; kadmind network access disabled in IPA) |
 | Dogtag CA | `pki-tomcatd@pki-tomcat` | 8080, 8443 |
 | BIND DNS | `named` | 53 |
 | Apache httpd (API+UI) | `httpd` | 80, 443 |
@@ -107,7 +107,7 @@ run IPA server components. It runs:
 Clients discover IPA servers via **DNS SRV records**:
 ```
 _ldap._tcp.example.com.   SRV  0 100 389 ipa1.example.com.
-_kerberos._tcp.EXAMPLE.COM. SRV 0 100 88 ipa1.example.com.
+_kerberos._tcp.example.com. SRV 0 100 88 ipa1.example.com.
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -123,12 +123,14 @@ separate database per component.
 
 ```mermaid
 graph TD
-    A[ipa CLI / Web UI] -->|JSON-RPC over HTTPS| B[httpd\nmod_auth_gssapi\nipa-wsgi]
-    B -->|python-ldap| C[389 Directory Server\nport 636 LDAPS]
-    B -->|ipa-otpd| D[MIT Kerberos KDC]
+    A[ipa CLI / Web UI] -->|JSON-RPC over HTTPS| B["httpd<br/>mod_auth_gssapi<br/>ipa-wsgi"]
+    B -->|python-ldap| C["389 Directory Server<br/>port 636 LDAPS"]
+    B -->|"GSSAPI / Kerberos auth"| D[MIT Kerberos KDC]
     D -->|kldap plugin reads principals| C
-    E[Dogtag CA\nTomcat :8443] -->|CS.cfg\nldapAuth| C
-    F[BIND DNS\nbind-dyndb-ldap plugin] -->|reads/writes zones| C
+    D -->|"OTP validation"| I[ipa-otpd]
+    I -->|reads OTP tokens| C
+    E["Dogtag CA<br/>Tomcat :8443"] -->|"CS.cfg<br/>ldapAuth"| C
+    F["BIND DNS<br/>bind-dyndb-ldap plugin"] -->|reads/writes zones| C
     G[Certmonger] -->|ipa-submit helper| B
     H[SSSD on clients] -->|LDAP bind| C
     H -->|kinit| D
@@ -144,14 +146,14 @@ it up via the dyndb plugin within seconds, with no zone file reload needed.
 
 ```mermaid
 graph LR
-    A[dirsrv\n389-DS] --> B[krb5kdc\nKDC]
-    A --> C[pki-tomcatd\nDogtag CA]
-    A --> D[named\nBIND DNS]
-    B --> E[httpd\nAPI + UI]
+    A["dirsrv<br/>389-DS"] --> B["krb5kdc<br/>KDC"]
+    A --> C["pki-tomcatd<br/>Dogtag CA"]
+    A --> D["named<br/>BIND DNS"]
+    B --> E["httpd<br/>API + UI"]
     C --> E
     D --> E
-    E --> F[ipa-otpd\nOTP daemon]
-    A --> G[sssd\nlocal auth]
+    E --> F["ipa-otpd<br/>OTP daemon"]
+    A --> G["sssd<br/>local auth"]
 ```
 
 > ⚠️ If `dirsrv` fails to start, everything else fails. Troubleshoot 389-DS first.
@@ -178,7 +180,7 @@ sequenceDiagram
     KDC-->>U: AS-REP (TGT for admin@EXAMPLE.COM)
     U->>KDC: TGS-REQ (ticket for HTTP/ipa1.example.com)
     KDC-->>U: TGS-REP (service ticket)
-    U->>API: HTTPS POST /ipa/json\n(Authorization: Negotiate <ticket>)
+    U->>API: HTTPS POST /ipa/json<br/>(Authorization: Negotiate <ticket>)
     API->>API: mod_auth_gssapi validates ticket
     API-->>U: 200 OK (Kerberos negotiation complete)
 ```
@@ -195,14 +197,14 @@ sequenceDiagram
     participant LDAP as 389-DS
     participant Hook as Plugin hooks
 
-    CLI->>API: POST /ipa/json\n{"method":"user_add","params":[["jdoe"],{...}]}
-    API->>RBAC: Does admin have permission\n"System: Add Users"?
+    CLI->>API: POST /ipa/json<br/>{"method":"user_add","params":[["jdoe"],{...}]}
+    API->>RBAC: Does admin have permission<br/>"System: Add Users"?
     RBAC-->>API: Allowed
-    API->>Hook: pre_callback hooks\n(validate, normalise)
+    API->>Hook: pre_callback hooks<br/>(validate, normalise)
     Hook-->>API: OK
     API->>LDAP: ldap_add(dn=uid=jdoe,cn=users,...)
     LDAP-->>API: Success
-    API->>Hook: post_callback hooks\n(automember eval, etc.)
+    API->>Hook: post_callback hooks<br/>(automember eval, etc.)
     Hook-->>API: OK
     API-->>CLI: {"result":{"dn":"uid=jdoe,..."},"error":null}
 ```
@@ -225,10 +227,10 @@ Sub-CAs can be created beneath the root CA, useful for:
 
 ```mermaid
 graph TD
-    A[IPA Root CA\ncn=Certificate Authority\nSelf-signed, 20-year validity] --> B[IPA Service Certs\nHTTP, LDAP, KDC, DNS]
-    A --> C[Host Certs\nall enrolled clients]
-    A --> D[Sub-CA: VPN\ncn=VPN Authority]
-    A --> E[Sub-CA: Users\ncn=User Certificate Authority]
+    A["IPA Root CA<br/>cn=Certificate Authority<br/>Self-signed, 20-year validity"] --> B["IPA Service Certs<br/>HTTP, LDAP, KDC, DNS"]
+    A --> C["Host Certs<br/>all enrolled clients"]
+    A --> D["Sub-CA: VPN<br/>cn=VPN Authority"]
+    A --> E["Sub-CA: Users<br/>cn=User Certificate Authority"]
     D --> D1[VPN Client Certs]
     D --> D2[VPN Server Certs]
     E --> E1[User Smart Card Certs]
@@ -240,12 +242,12 @@ graph TD
 ```mermaid
 graph LR
     subgraph "CA Replicas (recommended)"
-        R1[ipa1\nCA + KDC + LDAP]
-        R2[ipa2\nCA + KDC + LDAP]
-        R1 <-->|Dogtag replication\n+ 389-DS replication| R2
+        R1["ipa1<br/>CA + KDC + LDAP"]
+        R2["ipa2<br/>CA + KDC + LDAP"]
+        R1 <-->|"Dogtag replication<br/>+ 389-DS replication"| R2
     end
     subgraph "CA-less Replica"
-        R3[ipa3\nKDC + LDAP only]
+        R3["ipa3<br/>KDC + LDAP only"]
         R3 -->|cert requests proxied to| R1
     end
     C1[clients] --> R1
@@ -272,20 +274,20 @@ graph TD
     ROOT --> KRB["cn=kerberos"]
     ROOT --> DNS["cn=dns"]
     ROOT --> PKI["cn=pki"]
-    ROOT --> SVC["cn=services\n(IPA internal services)"]
+    ROOT --> SVC["cn=services<br/>(IPA internal services)"]
     ROOT --> HBAC["cn=hbac"]
     ROOT --> SUDO["cn=sudorules"]
-    ROOT --> RBAC["cn=pbac\n(Role-Based Access Control)"]
+    ROOT --> RBAC["cn=pbac<br/>(Role-Based Access Control)"]
 
-    ACC --> USERS["cn=users\nuid=jdoe,..."]
-    ACC --> GROUPS["cn=groups\ncn=admins,..."]
-    ACC --> HOSTS["cn=computers\nfqdn=web01,..."]
-    ACC --> SVCPRINC["cn=services\nkrbprincipalname=HTTP/..."]
+    ACC --> USERS["cn=users<br/>uid=jdoe,..."]
+    ACC --> GROUPS["cn=groups<br/>cn=admins,..."]
+    ACC --> HOSTS["cn=computers<br/>fqdn=web01,..."]
+    ACC --> SVCPRINC["cn=services<br/>krbprincipalname=HTTP/..."]
     ACC --> STAGED["cn=staged users"]
     ACC --> PRESERVED["cn=deleted users"]
 
-    KRB --> REALM["cn=EXAMPLE.COM\nKerberos realm config"]
-    PKI --> CATS["cn=cas\nCA objects"]
+    KRB --> REALM["cn=EXAMPLE.COM<br/>Kerberos realm config"]
+    PKI --> CATS["cn=cas<br/>CA objects"]
     PKI --> PROFILES["cn=certificateProfiles"]
 ```
 
@@ -304,13 +306,13 @@ changes propagate to all other replicas automatically.
 ```mermaid
 graph TD
     subgraph "Replication Topology (ring example)"
-        A[ipa1\ndc1] <-->|segment| B[ipa2\ndc2]
-        B <-->|segment| C[ipa3\ndc3]
+        A["ipa1<br/>dc1"] <-->|segment| B["ipa2<br/>dc2"]
+        B <-->|segment| C["ipa3<br/>dc3"]
         A <-->|segment| C
     end
     subgraph "Data replicated"
-        D[389-DS\nall LDAP data]
-        E[Dogtag CA\ncert database]
+        D["389-DS<br/>all LDAP data"]
+        E["Dogtag CA<br/>cert database"]
     end
     A --- D
     A --- E
@@ -319,8 +321,9 @@ graph TD
 Replication has two independent streams:
 1. **389-DS replication** — replicates all LDAP data (users, groups, policies, DNS,
    Kerberos principals, etc.)
-2. **Dogtag CA replication** — replicates the certificate database between CA replicas
-   (uses its own 389-DS instance on port 7389)
+2. **Dogtag CA replication** — replicates the certificate data between CA replicas.
+   Dogtag stores its data in the main 389-DS instance (no separate database); port
+   7389 is used only for replication with legacy CA replicas.
 
 Both streams must be healthy. `ipa-healthcheck` monitors both.
 
@@ -349,7 +352,7 @@ systemctl status pki-tomcatd@pki-tomcat
 # (server) Show BIND status
 systemctl status named
 
-# (server) List all Kerberos principals in the realm
+# (server) List service principals in the realm
 # (requires valid admin TGT)
 kinit admin
 ipa service-find --all | grep krbprincipalname
@@ -370,8 +373,8 @@ getcert list
 
 # (server) View DNS SRV records for service discovery
 dig +short _ldap._tcp.example.com SRV
-dig +short _kerberos._tcp.EXAMPLE.COM SRV
-dig +short _kerberos._udp.EXAMPLE.COM SRV
+dig +short _kerberos._tcp.example.com SRV
+dig +short _kerberos._udp.example.com SRV
 ```
 
 

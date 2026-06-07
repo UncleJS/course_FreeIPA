@@ -65,9 +65,9 @@ writes zone data directly from/to 389-DS.
 ```mermaid
 graph TD
     subgraph "FreeIPA DNS Stack"
-        A[DNS Client Query\nport 53] --> B[BIND 9.18\nnamed process]
-        B --> C[bind-dyndb-ldap plugin\nDLZ interface]
-        C -->|LDAP queries| D[389-DS\ncn=dns,dc=example,dc=com]
+        A["DNS Client Query<br/>port 53"] --> B["BIND 9.18<br/>named process"]
+        B --> C["bind-dyndb-ldap plugin<br/>DLZ interface"]
+        C -->|LDAP queries| D["389-DS<br/>cn=dns,dc=example,dc=com"]
         D -->|zone/record data| C
         C -->|DNS response| B
         B --> A
@@ -78,7 +78,7 @@ graph TD
         G[ipa dnszone-add] -->|IPA API| F
     end
     subgraph "Replication"
-        D <-->|389-DS replication| H[Replica 389-DS\ncn=dns,dc=example,dc=com]
+        D <-->|389-DS replication| H["Replica 389-DS<br/>cn=dns,dc=example,dc=com"]
         H --> I[BIND on replica]
     end
 ```
@@ -174,7 +174,7 @@ ipa dnszone-mod example.com --allow-transfer="none"
 
 | Type | Command flag | Example use |
 |------|-------------|-------------|
-| A | `--a-rec` | `web01 → 192.168.1.20` |
+| A | `--a-rec` | `web01 → 192.168.1.21` |
 | AAAA | `--aaaa-rec` | `web01 → 2001:db8::1` |
 | CNAME | `--cname-rec` | `www → web01.example.com.` |
 | MX | `--mx-rec` | Mail server |
@@ -187,8 +187,8 @@ ipa dnszone-mod example.com --allow-transfer="none"
 
 ```bash
 # A record
-ipa dnsrecord-add example.com web01 --a-rec=192.168.1.20
-ipa dnsrecord-add example.com web01 --a-rec=192.168.1.21  # round-robin
+ipa dnsrecord-add example.com web01 --a-rec=192.168.1.21
+ipa dnsrecord-add example.com web01 --a-rec=192.168.1.23  # round-robin (extra IP)
 
 # AAAA record
 ipa dnsrecord-add example.com web01 --aaaa-rec=2001:db8::20
@@ -208,7 +208,7 @@ ipa dnsrecord-add example.com _https._tcp \
   --srv-rec="0 100 443 web01.example.com."
 
 # PTR record (in reverse zone)
-ipa dnsrecord-add 1.168.192.in-addr.arpa. 20 \
+ipa dnsrecord-add 1.168.192.in-addr.arpa. 21 \
   --ptr-rec=web01.example.com.
 
 # Show all records in a zone
@@ -218,13 +218,13 @@ ipa dnsrecord-find example.com
 ipa dnsrecord-show example.com web01
 
 # Delete a specific record value
-ipa dnsrecord-del example.com web01 --a-rec=192.168.1.21
+ipa dnsrecord-del example.com web01 --a-rec=192.168.1.23
 
 # Delete all records for a name
 ipa dnsrecord-del example.com web01 --del-all
 
 # Modify TTL of a record
-ipa dnsrecord-mod example.com web01 --ttl=60 --a-rec=192.168.1.20
+ipa dnsrecord-mod example.com web01 --ttl=60 --a-rec=192.168.1.21
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -235,20 +235,20 @@ ipa dnsrecord-mod example.com web01 --ttl=60 --a-rec=192.168.1.20
 
 ```mermaid
 sequenceDiagram
-    participant C as DNS Client\n(getent hosts web01.example.com)
-    participant R as Resolver\n(client /etc/resolv.conf)
-    participant BIND as BIND 9.18\n(ipa1.example.com :53)
+    participant C as DNS Client<br/>(getent hosts web01.example.com)
+    participant R as Resolver<br/>(client /etc/resolv.conf)
+    participant BIND as BIND 9.18<br/>(ipa1.example.com :53)
     participant DLZ as bind-dyndb-ldap
     participant LDAP as 389-DS
 
     C->>R: getaddrinfo("web01.example.com")
     R->>BIND: DNS query A web01.example.com
     BIND->>DLZ: lookup web01.example.com A?
-    DLZ->>LDAP: ldapsearch\nidnsName=web01,idnsName=example.com,cn=dns
-    LDAP-->>DLZ: aRecord=192.168.1.20
-    DLZ-->>BIND: 192.168.1.20 TTL=300
-    BIND-->>R: A 192.168.1.20
-    R-->>C: 192.168.1.20
+    DLZ->>LDAP: ldapsearch<br/>idnsName=web01,idnsName=example.com,cn=dns
+    LDAP-->>DLZ: aRecord=192.168.1.21
+    DLZ-->>BIND: 192.168.1.21 TTL=300
+    BIND-->>R: A 192.168.1.21
+    R-->>C: 192.168.1.21
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -263,12 +263,12 @@ environments).
 
 ```mermaid
 sequenceDiagram
-    participant C as IPA Client\n(client01.example.com)
+    participant C as IPA Client<br/>(client01.example.com)
     participant KDC as Kerberos KDC
-    participant DNS as BIND\n(ipa1.example.com)
+    participant DNS as BIND<br/>(ipa1.example.com)
     participant LDAP as 389-DS
 
-    Note over C: IP address changed\nSSSD/NetworkManager detects change
+    Note over C: IP address changed<br/>SSSD/NetworkManager detects change
 
     C->>KDC: kinit -k host/client01.example.com
     KDC-->>C: TGT for host principal
@@ -276,9 +276,9 @@ sequenceDiagram
     C->>KDC: TGS-REQ for DNS/ipa1.example.com
     KDC-->>C: Service ticket for DNS update
 
-    C->>DNS: GSS-TSIG authenticated\nDNS UPDATE request\n(update A record for client01)
+    C->>DNS: GSS-TSIG authenticated<br/>DNS UPDATE request<br/>(update A record for client01)
 
-    DNS->>DNS: Validate GSS-TSIG signature\nCheck: host/client01 allowed to\nupdate client01.example.com?
+    DNS->>DNS: Validate GSS-TSIG signature<br/>Check: host/client01 allowed to<br/>update client01.example.com?
 
     DNS->>LDAP: Write updated aRecord to LDAP
     LDAP-->>DNS: Success
@@ -298,8 +298,8 @@ update add client01.example.com. 300 A 192.168.1.50
 send
 EOF
 
-# (server) Allow a host to update specific DNS names
-ipa dnsrecord-mod example.com client01 --setattr="idnsallowdynupdate=TRUE"
+# (server) Allow Kerberos-authenticated dynamic updates on the zone
+ipa dnszone-mod example.com --dynamic-update=TRUE
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -315,9 +315,9 @@ Global forwarders handle queries for zones that IPA does not manage locally.
 ```mermaid
 graph LR
     subgraph "IPA DNS"
-        A[Client query\nexample.com] -->|local zone| B[BIND answers directly]
-        C[Client query\ngoogle.com] -->|not local| D[BIND forwards to]
-        D --> E[8.8.8.8\nGlobal forwarder]
+        A["Client query<br/>example.com"] -->|local zone| B[BIND answers directly]
+        C["Client query<br/>google.com"] -->|not local| D[BIND forwards to]
+        D --> E["8.8.8.8<br/>Global forwarder"]
         E -->|response| D
         D -->|response| C
     end
@@ -333,8 +333,12 @@ ipa dnsconfig-mod --forwarder=8.8.8.8 --forwarder=8.8.4.4
 # Set forward policy (first = try forwarder first, then local; only = forwarder only)
 ipa dnsconfig-mod --forward-policy=first
 
-# Remove a forwarder
-ipa dnsconfig-mod --delattr=idnsforwarders=8.8.8.8
+# Remove a forwarder: re-specify the full desired list.
+# --forwarder replaces the WHOLE list, so list only the ones to keep.
+ipa dnsconfig-mod --forwarder=8.8.4.4
+
+# Remove all global forwarders
+ipa dnsconfig-mod --forwarder=
 ```
 
 ### 6.2 Per-Zone Forwarders
@@ -353,10 +357,10 @@ ipa dnszone-show ad.example.com | grep forward
 
 ```mermaid
 graph TD
-    A[example.com\nauthoritative: ipa1.example.com] --> B{Query for\napp.example.com?}
-    B -->|NS delegation| C[NS record:\napp.example.com → ns1.app.example.com]
-    C --> D[Query forwarded to\nns1.app.example.com]
-    D --> E[app-specific\nDNS server answers]
+    A["example.com<br/>authoritative: ipa1.example.com"] --> B{"Query for<br/>app.example.com?"}
+    B -->|NS delegation| C["NS record:<br/>app.example.com → ns1.app.example.com"]
+    C --> D["Query forwarded to<br/>ns1.app.example.com"]
+    D --> E["app-specific<br/>DNS server answers"]
 ```
 
 ```bash
@@ -385,12 +389,12 @@ verify authenticity. FreeIPA integrates DNSSEC key management with the IPA CA.
 
 ```mermaid
 graph TD
-    A[Trust Anchor\nRoot DNS .\nPublicly trusted] --> B[TLD delegation\n.com / .org DS record]
-    B --> C[example.com\nDS record in .com zone\nHash of example.com KSK public key]
-    C --> D[KSK\nKey Signing Key\nexample.com DNSKEY record\nLong-lived, high security]
-    D --> E[ZSK\nZone Signing Key\nexample.com DNSKEY record\nShorter-lived, rotated more often]
-    E --> F[RRSIG records\nSignature over each RRset\ne.g., RRSIG for web01 A record]
-    E --> G[NSEC/NSEC3 records\nAuthenticated denial of existence]
+    A["Trust Anchor<br/>Root DNS .<br/>Publicly trusted"] --> B["TLD delegation<br/>.com / .org DS record"]
+    B --> C["example.com<br/>DS record in .com zone<br/>Hash of example.com KSK public key"]
+    C --> D["KSK<br/>Key Signing Key<br/>example.com DNSKEY record<br/>Long-lived, high security"]
+    D --> E["ZSK<br/>Zone Signing Key<br/>example.com DNSKEY record<br/>Shorter-lived, rotated more often"]
+    E --> F["RRSIG records<br/>Signature over each RRset<br/>e.g., RRSIG for web01 A record"]
+    E --> G["NSEC/NSEC3 records<br/>Authenticated denial of existence"]
 ```
 
 **Key types:**
@@ -406,13 +410,13 @@ graph TD
 
 ```mermaid
 flowchart TD
-    A[Admin: ipa dnszone-mod example.com\n--dnssec=true] --> B[IPA generates KSK + ZSK\nvia OpenDNSSEC]
-    B --> C[BIND signs all zone records\nAdds RRSIG + NSEC3 records]
-    C --> D[Admin retrieves DS record\nipa dnszone-show example.com\n--all grep DS]
-    D --> E{Is parent zone\nalso in IPA?}
-    E -->|Yes| F[ipa dnsrecord-add parent-zone example\n--ds-rec=...]
-    E -->|No| G[Submit DS record to registrar\nor parent DNS admin\nout-of-band process]
-    F --> H[Chain of trust complete\nDNSSEC validation works]
+    A["Admin: ipa dnszone-mod example.com<br/>--dnssec=true"] --> B["IPA generates KSK + ZSK<br/>via OpenDNSSEC"]
+    B --> C["BIND signs all zone records<br/>Adds RRSIG + NSEC3 records"]
+    C --> D["Admin retrieves DS record<br/>ipa dnszone-show example.com<br/>--all grep DS"]
+    D --> E{"Is parent zone<br/>also in IPA?"}
+    E -->|Yes| F["ipa dnsrecord-add parent-zone example<br/>--ds-rec=..."]
+    E -->|No| G["Submit DS record to registrar<br/>or parent DNS admin<br/>out-of-band process"]
+    F --> H["Chain of trust complete<br/>DNSSEC validation works"]
     G --> H
 ```
 
@@ -433,37 +437,41 @@ dig +dnssec web01.example.com A
 
 # Use delv for full chain-of-trust validation
 delv @ipa1.example.com web01.example.com A
-# Expected: "fully validated" in output
+# Expected: "fully validated" ONLY if a trust anchor for the chain is configured
+# locally. With no DS published at the parent and no manually configured anchor,
+# delv reports "unsigned answer" / no validation. To validate an island of trust,
+# add the zone's DNSKEY/DS as a local trust anchor (e.g. trust-anchors {} in
+# /etc/named/ or delv -a anchor-file).
 
-# Check DNSSEC status for a zone
-ipa dnszone-show example.com --all | grep nsec
+# Check NSEC3 (authenticated denial of existence) — visible in negative responses
+dig +dnssec @ipa1.example.com nonexistent.example.com A | grep -i nsec3
 ```
 
 ### 7.3 DNSSEC Validation Chain
 
 ```mermaid
 sequenceDiagram
-    participant R as DNS Resolver\n(validation-enabled)
-    participant IPA as BIND\n(ipa1.example.com)
+    participant R as DNS Resolver<br/>(validation-enabled)
+    participant IPA as BIND<br/>(ipa1.example.com)
     participant ROOT as Root DNS (.)
     participant TLD as .com DNS
 
     R->>IPA: Query: web01.example.com A? +dnssec
-    IPA-->>R: A=192.168.1.20 + RRSIG (signed by ZSK)
+    IPA-->>R: A=192.168.1.21 + RRSIG (signed by ZSK)
     IPA-->>R: DNSKEY (ZSK + KSK public keys)
 
-    Note over R: Verify RRSIG with ZSK public key ✓\nNow need to trust ZSK...
-    Note over R: Verify DNSKEY RRSIG with KSK ✓\nNow need to trust KSK...
+    Note over R: Verify RRSIG with ZSK public key ✓<br/>Now need to trust ZSK...
+    Note over R: Verify DNSKEY RRSIG with KSK ✓<br/>Now need to trust KSK...
 
     R->>TLD: Query: example.com DS?
     TLD-->>R: DS record (hash of example.com KSK)
-    Note over R: Hash KSK → matches DS record ✓\nNow need to trust .com...
+    Note over R: Hash KSK → matches DS record ✓<br/>Now need to trust .com...
 
     R->>ROOT: Query: .com DS?
     ROOT-->>R: .com DS record
     Note over R: .com DS matches trust anchor ✓
 
-    Note over R: Full chain validated ✅\nResponse is authentic
+    Note over R: Full chain validated ✅<br/>Response is authentic
 ```
 
 ### 7.4 DNSSEC Key Rollover
@@ -471,21 +479,29 @@ sequenceDiagram
 FreeIPA/OpenDNSSEC handles ZSK rollover automatically. KSK rollover requires
 manual intervention because it involves updating the DS record in the parent zone.
 
+> ⚠️ Toggling `ipa dnszone-mod example.com --dnssec=false` then `--dnssec=true` is
+> **NOT** a rollover. It unsigns the zone, tears down the chain of trust, and
+> regenerates ALL keys from scratch — causing a validation outage for every
+> resolver that still trusts the old DS. Never use it as a rollover step. Use the
+> OpenDNSSEC enforcer (`ods-enforcer`), which manages FreeIPA's DNSSEC keys.
+
 ```bash
-# View current DNSSEC keys and their states
-ipa dnskey-find example.com
+# View current DNSSEC keys and their states (OpenDNSSEC is the key manager)
+sudo ods-enforcer key list --zone=example.com --verbose
 
 # Initiate a manual KSK rollover (when required)
-# Step 1: Generate new KSK
-ipa dnszone-mod example.com --dnssec=false
-ipa dnszone-mod example.com --dnssec=true
+# Step 1: Trigger the KSK rollover; the enforcer generates a new KSK alongside
+#         the old one and manages the timed transition.
+sudo ods-enforcer key rollover --zone example.com --keytype KSK
 
-# Step 2: Get new DS record
-ipa dnszone-show example.com --all | grep -i DS
+# Step 2: Export the NEW DS record to submit to the parent
+sudo ods-enforcer key export --zone example.com --keytype KSK --ds
 
-# Step 3: Submit new DS to parent zone/registrar
-# Step 4: Wait for DS to propagate (check with dig +dnssec)
-# Step 5: Remove old KSK (automatic after TTL expires)
+# Step 3: Publish BOTH the old and new DS at the parent zone/registrar and keep
+#         them published for the full overlap window (see §7.5).
+# Step 4: Wait for DS to propagate (check with dig +dnssec / dig DS at the parent).
+# Step 5: Once the new DS is visible everywhere, retire the old key.
+sudo ods-enforcer key list --zone=example.com --verbose   # confirm new KSK active
 
 # Monitor DNSSEC status
 journalctl -u named | grep -i "dnssec\|sign\|key"
@@ -497,16 +513,15 @@ Use this sequence when the parent zone is external and you must coordinate DS up
 
 ```bash
 # 1. Record the current DNSSEC state before changing anything
-ipa dnszone-show example.com --all
+sudo ods-enforcer key list --zone=example.com --verbose
 dig +dnssec example.com SOA @ipa1.example.com
 
 # 2. Trigger the new KSK and confirm a second key appears
-ipa dnszone-mod example.com --dnssec=false
-ipa dnszone-mod example.com --dnssec=true
-ipa dnskey-find example.com
+sudo ods-enforcer key rollover --zone example.com --keytype KSK
+sudo ods-enforcer key list --zone=example.com --verbose
 
-# 3. Capture the new DS record for the parent zone
-ipa dnszone-show example.com --all | grep -i DS
+# 3. Export the new DS record for the parent zone
+sudo ods-enforcer key export --zone example.com --keytype KSK --ds
 
 # 4. Submit the new DS record to the parent zone or registrar
 # Keep the old DS published until the new one is visible everywhere.
@@ -533,8 +548,8 @@ journalctl -u named | grep -i "dnssec\|sign\|key"
 kinit admin
 
 # Add records
-ipa dnsrecord-add example.com web01 --a-rec=192.168.1.20
-ipa dnsrecord-add example.com web02 --a-rec=192.168.1.21
+ipa dnsrecord-add example.com web01 --a-rec=192.168.1.21
+ipa dnsrecord-add example.com web02 --a-rec=192.168.1.23
 ipa dnsrecord-add example.com www --cname-rec=web01.example.com.
 ipa dnsrecord-add example.com mail --a-rec=192.168.1.30
 ipa dnsrecord-add example.com @ --mx-rec="10 mail.example.com."
@@ -545,8 +560,9 @@ dig @ipa1.example.com www.example.com CNAME
 dig @ipa1.example.com example.com MX
 
 # Add reverse PTR records
-ipa dnsrecord-add 1.168.192.in-addr.arpa. 20 --ptr-rec=web01.example.com.
-dig @ipa1.example.com -x 192.168.1.20
+ipa dnsrecord-add 1.168.192.in-addr.arpa. 20 --ptr-rec=client01.example.com.
+ipa dnsrecord-add 1.168.192.in-addr.arpa. 21 --ptr-rec=web01.example.com.
+dig @ipa1.example.com -x 192.168.1.21
 
 # ── EXERCISE 2: Forwarder configuration ─────────────────────────────────────
 
@@ -566,7 +582,9 @@ dig @ipa1.example.com web01.example.com A +dnssec
 
 # Validate with delv
 delv @127.0.0.1 web01.example.com A
-# Expect: "; fully validated" in output (if trust anchor configured)
+# Expect "; fully validated" ONLY if a trust anchor for example.com is configured
+# locally (island of trust — no public DS chain in a lab). Otherwise delv reports
+# the answer as unsigned/insecure even though RRSIGs are present.
 
 # Check NSEC3 records (authenticated denial of existence)
 dig @ipa1.example.com nonexistent.example.com A +dnssec

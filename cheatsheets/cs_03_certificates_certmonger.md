@@ -149,6 +149,7 @@ ipa cert-find \
     --validnotafter-to=20261231235959Z
 
 # Revoke a certificate
+# ⚠️ Irreversible unless reason 6 (certificateHold) — only held certs can be released
 ipa cert-revoke 15 --revocation-reason=1   # 0=unspecified, 1=key compromise
 
 # Revocation reasons:
@@ -159,7 +160,9 @@ ipa cert-revoke 15 --revocation-reason=1   # 0=unspecified, 1=key compromise
 # 4 = Superseded
 # 5 = Cessation of Operation
 # 6 = Certificate Hold (temporary)
-# 8 = Remove from Hold (unrevoke reason=6)
+# 8 = Remove from CRL (releases a reason-6 hold; 7 is unused in RFC 5280)
+# 9 = Privilege Withdrawn
+# 10 = AA Compromise
 
 # Unrevoke a certificate (reason 6 only)
 ipa cert-remove-hold 15

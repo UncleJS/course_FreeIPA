@@ -37,7 +37,7 @@ sudo ipactl restart
 sudo ipactl status
 
 # Individual services
-sudo systemctl status dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl status dirsrv@EXAMPLE-COM.service
 sudo systemctl restart krb5kdc kadmin httpd
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
 
@@ -86,10 +86,11 @@ ipa user-enable jsmith
 # Unlock locked account
 ipa user-unlock jsmith
 
-# Delete user (archive — never hard deletes)
+# Delete user
+# ⚠️ Bare user-del permanently deletes the entry — not recoverable. Prefer --preserve.
 ipa user-del jsmith
 
-# Preserve user on delete (can be undelete later)
+# Preserve user on delete (can be undeleted later)
 ipa user-del jsmith --preserve
 
 # Undelete preserved user

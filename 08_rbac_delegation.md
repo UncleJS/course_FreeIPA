@@ -127,8 +127,8 @@ grants a specific operation on a specific set of LDAP objects.
 
 ```mermaid
 graph LR
-    A[IPA Permission:\nSystem: Modify Users\ntarget: cn=users\nattr: mail,telephoneNumber\ntype: write] -->|translates to| B["389-DS ACI:\n(target=ldap:///cn=users,...)\n(targetattr=mail||telephoneNumber)\n(version 3.0; acl ...; allow (write) ...)"]
-    B -->|enforced by| C[389-DS access control\nengine]
+    A["IPA Permission:<br/>System: Modify Users<br/>target: cn=users<br/>attr: mail,telephoneNumber<br/>type: write"] -->|translates to| B["389-DS ACI:<br/>(target=ldap:///cn=users,...)<br/>(targetattr=mail||telephoneNumber)<br/>(version 3.0; acl ...; allow (write) ...)"]
+    B -->|enforced by| C["389-DS access control<br/>engine"]
 ```
 
 ### 2.2 Built-in Permissions
@@ -199,10 +199,10 @@ Understanding the underlying ACI syntax helps when debugging permission issues:
 
 ```mermaid
 graph TD
-    ACI["389-DS ACI string"] --> T["Target\nwhat LDAP objects\nldap:///cn=users,cn=accounts,..."]
-    ACI --> A["Targetattr\nwhich attributes\ne.g. mail, telephoneNumber"]
-    ACI --> P["Principal\nwho is allowed\ngroupdn = ldap:///cn=permissions,..."]
-    ACI --> O["Operation\nadd / delete / write / read"]
+    ACI["389-DS ACI string"] --> T["Target<br/>what LDAP objects<br/>ldap:///cn=users,cn=accounts,..."]
+    ACI --> A["Targetattr<br/>which attributes<br/>e.g. mail, telephoneNumber"]
+    ACI --> P["Principal<br/>who is allowed<br/>groupdn = ldap:///cn=permissions,..."]
+    ACI --> O["Operation<br/>add / delete / write / read"]
 ```
 
 ```bash
@@ -211,7 +211,9 @@ ldapsearch -Y GSSAPI \
   -b "cn=users,cn=accounts,dc=example,dc=com" \
   -s base "(objectClass=*)" aci
 
-# View all ACIs in the PBAC container
+# View all ACIs in the PBAC container.
+# Under cn=pbac: privileges live in cn=privileges,cn=pbac,... and
+# permissions live in cn=permissions,cn=pbac,... (both are groupOfNames objects).
 ldapsearch -Y GSSAPI \
   -b "cn=pbac,dc=example,dc=com" \
   -s sub "(objectClass=groupofnames)" cn member
@@ -276,18 +278,16 @@ ipa privilege-show "IT Helpdesk Privilege"
 ```mermaid
 graph TD
     subgraph "Built-in Roles"
-        ADMIN[Admin\nFull access to everything]
-        USRADMIN[User Administrator\nManage users + groups]
-        HOSTADMIN[Host Enroll\nEnroll hosts]
-        SVCADMIN[Service Administrators\nManage service principals]
-        DNSADMIN[DNS Administrator\nManage DNS]
-        CERTADMIN[Certificate Administrator\nManage certificates]
-        REPLICAADMIN[Replication Administrators\nManage replicas]
-        DELEGATION[Delegation Administrator\nManage RBAC roles]
+        HELPDESK["helpdesk<br/>Modify users + reset passwords"]
+        USRADMIN["User Administrator<br/>Manage users + groups"]
+        ITSPEC["IT Specialist<br/>Manage hosts + services"]
+        ITSEC["IT Security Specialist<br/>Manage HBAC, sudo, netgroups"]
+        SECARCH["Security Architect<br/>Manage RBAC delegation + policy"]
+        ENROLLADMIN["Enrollment Administrator<br/>Enroll hosts + manage OTP"]
     end
-    ADMIN -.->|superset| USRADMIN
-    ADMIN -.->|superset| DNSADMIN
-    ADMIN -.->|superset| CERTADMIN
+    SECARCH -.->|can delegate to| USRADMIN
+    SECARCH -.->|can delegate to| ITSPEC
+    SECARCH -.->|can delegate to| ITSEC
 ```
 
 ```bash
@@ -327,12 +327,12 @@ sequenceDiagram
     participant IPA as IPA API
     participant LDAP as 389-DS
 
-    ADMIN->>IPA: ipa role-add-member "IT Helpdesk"\n--users=helpdesk01\n--groups=it-helpdesk-group
-    IPA->>LDAP: Add helpdesk01 to\ncn=IT Helpdesk,cn=roles,cn=accounts,dc=...
+    ADMIN->>IPA: ipa role-add-member "IT Helpdesk"<br/>--users=helpdesk01<br/>--groups=it-helpdesk-group
+    IPA->>LDAP: Add helpdesk01 to<br/>cn=IT Helpdesk,cn=roles,cn=accounts,dc=...
     LDAP-->>IPA: Success
     IPA-->>ADMIN: Role assigned
 
-    Note over LDAP: 389-DS ACI now grants\nhelpdesk01 the permissions\ndefined in the role's privileges
+    Note over LDAP: 389-DS ACI now grants<br/>helpdesk01 the permissions<br/>defined in the role's privileges
 ```
 
 ```bash
@@ -385,7 +385,7 @@ ipa selfservice-find --all
 ```mermaid
 graph LR
     A[Regular user jdoe] -->|ipa user-mod jdoe --mobile=...| B[IPA API]
-    B -->|check ACI| C{Self-service ACI\nallows mobile write?}
+    B -->|check ACI| C{"Self-service ACI<br/>allows mobile write?"}
     C -->|Yes| D[389-DS: update jdoe's mobile attr]
     C -->|No| E[Permission denied]
 ```
@@ -404,10 +404,10 @@ permission grant, not mediated through privileges/roles.
 
 ```mermaid
 graph TD
-    A[Delegation Rule:\nhr-manages-employees] --> B[Member Group\nhr-admins\nwho gets the permission]
-    A --> C[ACI Target Group\nall-employees\nwhose attributes can be managed]
-    A --> D[Attributes\nmail\ntelephoneNumber\ntitle\ndepartment]
-    B -->|can write| E[Modify mail/phone/title\nfor users in all-employees]
+    A["Delegation Rule:<br/>hr-manages-employees"] --> B["Member Group<br/>hr-admins<br/>who gets the permission"]
+    A --> C["ACI Target Group<br/>all-employees<br/>whose attributes can be managed"]
+    A --> D["Attributes<br/>mail<br/>telephoneNumber<br/>title<br/>department"]
+    B -->|can write| E["Modify mail/phone/title<br/>for users in all-employees"]
 ```
 
 ```bash
@@ -439,18 +439,20 @@ To understand what a user can do in IPA, trace their membership through roles:
 
 ```mermaid
 flowchart TD
-    A[User: helpdesk01] --> B{Direct role\nassignment?}
+    A[User: helpdesk01] --> B{"Direct role<br/>assignment?"}
     B -->|Role: IT Helpdesk| C[Privilege: IT Helpdesk Privilege]
     B -->|Group: it-helpdesk| D[Group role: IT Helpdesk]
-    C --> E[Permission: Helpdesk: Modify User Mobile\nPermission: System: Change User Password]
+    C --> E["Permission: Helpdesk: Modify User Mobile<br/>Permission: System: Change User Password"]
     D --> E
-    E --> F["ACI: allow write on mobile attr\nACI: allow write on userPassword attr\n(for users in cn=users)"]
-    F --> G[helpdesk01 can change\nuser mobile + password\nbut cannot delete users or manage DNS]
+    E --> F["ACI: allow write on mobile attr<br/>ACI: allow write on userPassword attr<br/>(for users in cn=users)"]
+    F --> G["helpdesk01 can change<br/>user mobile + password<br/>but cannot delete users or manage DNS"]
 ```
 
 ```bash
-# Show all roles a user has (directly or via group)
-ipa user-show helpdesk01 --all | grep -i "member of"
+# Show all roles a user has (directly or via group).
+# Inspect the "Roles:" field in the full output — "Member of" lines list groups,
+# not roles, so don't grep for "member of" or you may miss role assignments.
+ipa user-show helpdesk01 --all
 
 # Show a role's privileges
 ipa role-show "IT Helpdesk" | grep -i privilege
@@ -478,10 +480,10 @@ A complete walkthrough: create a DNS-only administrator role.
 
 ```mermaid
 flowchart LR
-    A["Step 1\nCreate Permissions\n(if built-in insufficient)"] --> B["Step 2\nCreate Privilege\n(group permissions)"]
-    B --> C["Step 3\nCreate Role\n(wrap the privilege)"]
-    C --> D["Step 4\nAssign Role\n(to user/group)"]
-    D --> E["Step 5\nVerify\n(kinit as user, test)"]
+    A["Step 1<br/>Create Permissions<br/>(if built-in insufficient)"] --> B["Step 2<br/>Create Privilege<br/>(group permissions)"]
+    B --> C["Step 3<br/>Create Role<br/>(wrap the privilege)"]
+    C --> D["Step 4<br/>Assign Role<br/>(to user/group)"]
+    D --> E["Step 5<br/>Verify<br/>(kinit as user, test)"]
 ```
 
 ```bash
@@ -562,10 +564,11 @@ kinit admin
 
 # ── EXERCISE 2: Custom permission ────────────────────────────────────────────
 
-ipa permission-add "Helpdesk: Reset User Password" \
-  --right=write \
-  --attr=userpassword \
-  --type=user
+# NOTE: do NOT hand-roll a password-reset permission from the raw userpassword
+# attribute — write access to userpassword alone is not enough for `ipa passwd`
+# to work. FreeIPA ships the built-in permission "System: Change User password",
+# which carries the correct ACI (and krbPrincipalKey handling). Use it instead.
+ipa permission-show "System: Change User password"
 
 ipa permission-add "Helpdesk: View Users" \
   --right=read \
@@ -578,8 +581,9 @@ ipa permission-add "Helpdesk: View Users" \
 ipa privilege-add "Helpdesk Staff Privilege" \
   --desc="Password reset and user viewing"
 
+# Add the built-in password-change permission plus our custom view permission.
 ipa privilege-add-permission "Helpdesk Staff Privilege" \
-  --permissions="Helpdesk: Reset User Password" \
+  --permissions="System: Change User password" \
   --permissions="Helpdesk: View Users"
 
 # ── EXERCISE 4: Custom role ───────────────────────────────────────────────────

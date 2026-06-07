@@ -66,10 +66,10 @@ one unified API and CLI.
 ```mermaid
 graph TD
     A[Administrator] -->|ipa CLI / Web UI| B[IPA API - httpd]
-    B --> C[389 Directory Server\nLDAP Backend]
+    B --> C["389 Directory Server<br/>LDAP Backend"]
     B --> D[MIT Kerberos KDC]
-    B --> E[Dogtag PKI\nCertificate Authority]
-    B --> F[BIND DNS\nBIND-DLZ plugin]
+    B --> E["Dogtag PKI<br/>Certificate Authority"]
+    B --> F["BIND DNS<br/>BIND-DLZ plugin"]
     C <-->|replication| G[Replica Server]
     H[Linux Client] -->|SSSD| C
     H -->|kinit / PAM| D
@@ -133,12 +133,12 @@ internal state.
 graph TD
     A[IPA API] -->|writes| B[389 Directory Server]
     B -->|DIT structure| C[dc=example,dc=com]
-    C --> D[cn=accounts\nUsers, Groups, Hosts]
-    C --> E[cn=kerberos\nPrincipals, Policies]
-    C --> F[cn=dns\nZones, Records]
-    C --> G[cn=pki\nCA, Profiles]
-    C --> H[cn=sudo\nSudo Rules]
-    C --> I[cn=hbac\nAccess Rules]
+    C --> D["cn=accounts<br/>Users, Groups, Hosts"]
+    C --> E["cn=kerberos<br/>Principals, Policies"]
+    C --> F["cn=dns<br/>Zones, Records"]
+    C --> G["cn=pki<br/>CA, Profiles"]
+    C --> H["cn=sudo<br/>Sudo Rules"]
+    C --> I["cn=hbac<br/>Access Rules"]
 ```
 
 ### 3.2 MIT Kerberos KDC
@@ -190,7 +190,7 @@ as it simplifies Kerberos configuration and SRV record management.
 ### 3.5 SSSD (System Security Services Daemon)
 
 **Package:** `sssd`, `sssd-ipa`  
-**Version on RHEL 10:** 2.9.x+
+**Version on RHEL 10:** 2.10.x+
 
 SSSD runs on **client machines** (not the IPA server itself, though it also runs
 there for local resolution). It is the bridge between the OS and FreeIPA:
@@ -235,12 +235,12 @@ graph LR
         A6[Sudo]
     end
     subgraph "Active Directory"
-        B1[AD DS\nLDAP]
-        B2[AD KDC\nKerberos]
+        B1["AD DS<br/>LDAP"]
+        B2["AD KDC<br/>Kerberos"]
         B3[AD DNS]
-        B4[AD CS\nCertificate Services]
-        B5[Group Policy\nAccess Control]
-        B6[Group Policy\nSudo via PBIS]
+        B4["AD CS<br/>Certificate Services"]
+        B5["Group Policy<br/>Access Control"]
+        B6["Group Policy<br/>Sudo via PBIS"]
     end
     subgraph "OpenLDAP only"
         C1[LDAP]
@@ -277,11 +277,11 @@ to authenticate to Linux resources managed by FreeIPA.
 | Component | Package | Version (RHEL 10) |
 |-----------|---------|-------------------|
 | FreeIPA | `ipa-server` | 4.12.x |
-| 389 Directory Server | `389-ds-base` | 2.4.x |
+| 389 Directory Server | `389-ds-base` | 3.1.x |
 | MIT Kerberos | `krb5-server` | 1.21.x |
 | Dogtag PKI | `pki-ca` | 11.x |
 | BIND DNS | `bind` | 9.18.x |
-| SSSD | `sssd` | 2.9.x |
+| SSSD | `sssd` | 2.10.x |
 | Certmonger | `certmonger` | 0.79.x |
 | Python | `python3` | 3.12 |
 | OpenSSL | `openssl` | 3.2.x |

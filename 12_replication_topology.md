@@ -57,7 +57,7 @@ FreeIPA uses **multi-master replication** (MMR): every server can accept writes,
 | **CSN** | Change Sequence Number — uniquely identifies every LDAP change |
 | **RUV** | Replica Update Vector — tracks the highest CSN each replica has seen from all others |
 | **Changelog** | 389-DS persistent log of all changes, used to replay missed updates |
-| **Suffix** | LDAP subtree being replicated (e.g., `dc=ipa,dc=example,dc=com`, `o=ipaca`) |
+| **Suffix** | LDAP subtree being replicated (e.g., `dc=example,dc=com`, `o=ipaca`) |
 
 ### 1.2 Replication Suffixes
 
@@ -66,7 +66,7 @@ FreeIPA maintains **three independent replicated suffixes**:
 ```mermaid
 graph TD
     subgraph "Replicated Suffixes"
-        S1["dc=ipa,dc=example,dc=com<br/>(Domain data: users, groups, policies)"]
+        S1["dc=example,dc=com<br/>(Domain data: users, groups, policies)"]
         S2["o=ipaca<br/>(CA/Dogtag data: certificates, CRLs)"]
         S3["cn=changelog<br/>(internal — not manually managed)"]
     end
@@ -145,7 +145,7 @@ graph LR
     R1 <--> R3
 ```
 
-**Best practice:** Every replica should have at least **2 replication agreements**. Avoid single-agreement chains.
+**Best practice:** Every replica should have at least **2 replication agreements** (so the loss of one peer does not isolate it), but **no more than 4** to avoid excessive replication overhead. Avoid single-agreement chains. The supported maximum is **60 replicas** per domain.
 
 ### 2.4 Topology Design Rules
 
@@ -155,9 +155,9 @@ mindmap
         Minimum 2 replicas in prod
         CA on at least 2 replicas
         DNS on at least 2 replicas
-        Each replica has ≥2 replication agreements
+        Each replica has 2 to 4 replication agreements
         Avoid hub-and-spoke for critical environments
-        Max ~20 replicas per domain
+        Supported max 60 replicas per domain
         Separate domain and ca suffix topologies
         Place replicas close to user populations
 ```
@@ -203,7 +203,7 @@ sudo ldapsearch -x -H ldap://localhost \
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" \
     -W \
-    -b "cn=replica,cn=dc\3Dipa\2Cdc\3Dexample\2Cdc\3Dcom,cn=mapping tree,cn=config" \
+    -b "cn=replica,cn=dc\3Dexample\2Cdc\3Dcom,cn=mapping tree,cn=config" \
     "(objectClass=nsDS5Replica)" \
     nsDS5ReplicaId nsDS5ReplicaType nsds5replicaUpdateSchedule
 ```
@@ -325,7 +325,8 @@ ipa server-show ipa2.example.com | grep "CA enabled"
 ipa server-show ipa2.example.com | grep "DNS enabled"
 
 # Force replication check (modern API)
-ipa topologysegment-find dc=ipa,dc=example,dc=com
+# topologysegment-find takes the suffix NAME ("domain" or "ca"), not the DN
+ipa topologysegment-find domain
 # To force a sync, restart the replication agreement via 389-DS:
 # sudo ldapmodify -x -H ldap://localhost -D "cn=Directory Manager" -W <<'EOF'
 # dn: cn=<agreement-cn>,cn=replica,...
@@ -421,7 +422,14 @@ ipa topologysuffix-verify ca
 
 ### 6.1 CA Replica Roles
 
-Not all CA replicas are equal. One CA replica serves as the **CRL master** — it generates and distributes Certificate Revocation Lists.
+Not all CA replicas are equal, and two **distinct** roles are easy to confuse:
+
+| Role | What it does | How it is moved |
+|------|--------------|-----------------|
+| **CA renewal master** | Renews the IPA CA certificate and all IPA service certificates; tracks them with certmonger | `ipa config-mod --ca-renewal-master-server=<host>` (IPA-managed) |
+| **CRL generation master** | Generates and publishes the Certificate Revocation List (CRL) | Manual `CS.cfg` edit on each server (Dogtag setting; **not** an `ipa config-mod` option) |
+
+A single server is commonly *both* by default, but the roles are independent — you can host them on different replicas, and you move each with a different procedure. The sections below treat them separately.
 
 ```mermaid
 graph TD
@@ -437,65 +445,74 @@ graph TD
     CA1 --> LDAP_CRL & HTTP_CRL
 ```
 
-### 6.2 Identifying the CRL Master
+### 6.2 Identifying Each Master
 
 ```bash
-# Check which server is CRL master
+# CA RENEWAL master — IPA-managed, shown in config
 ipa config-show | grep "IPA CA renewal master"
 
-# Or check Dogtag config
+# CRL GENERATION master — a Dogtag CS.cfg setting, checked per server
 sudo grep -r "ca.crl.MasterCRL.enable" \
     /etc/pki/pki-tomcat/ca/CS.cfg
 # CRL master: ca.crl.MasterCRL.enable=true
 # Non-master: ca.crl.MasterCRL.enable=false
 ```
 
-### 6.3 Moving the CRL Master
+### 6.3 Moving the CA Renewal Master
 
-```bash
-# Record the current owner before making changes
-ipa config-show | grep "IPA CA renewal master"
-sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
-
-# Move CRL master to ipa2
-ipa config-mod --ca-renewal-master-server=ipa2.example.com
-
-# On OLD CRL master (ipa1): disable CRL generation
-sudo sed -i \
-    's/^ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-
-# On NEW CRL master (ipa2): enable CRL generation
-sudo sed -i \
-    's/^ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-
-# Restart pki-tomcatd on both servers and verify freshness
-sudo systemctl restart pki-tomcatd@pki-tomcat.service
-curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
-    openssl crl -inform DER -noout -lastupdate -nextupdate
-
-# Verify only one master remains enabled
-ipa config-show | grep "CA renewal master"
-sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
-```
-
-> Only one server should have `ca.crl.MasterCRL.enable=true` after the move. Validate the published CRL timestamps before decommissioning the old master.
-
-### 6.4 CA Renewal Master
-
-The CA renewal master is responsible for renewing the IPA CA certificate itself and all IPA service certificates. By default it is the first IPA master.
+The renewal master renews the IPA CA certificate and all IPA service certificates. By default it is the first IPA master. Moving it is a single IPA command — it does **not** touch CRL generation.
 
 ```bash
 # Show current renewal master
 ipa config-show | grep "IPA CA renewal master"
 
-# Move renewal master (e.g., before decommissioning a server)
+# Move renewal master (e.g., before decommissioning the current one)
 ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
-# Verify certmonger tracks are updated
+# Verify certmonger tracking on the new master is updated
 sudo getcert list | grep -E "status|ca-error"
 ```
+
+### 6.4 Moving the CRL Generation Master
+
+The CRL master is **not** an `ipa config-mod` option — it is the `ca.crl.MasterCRL.enable` setting in each server's Dogtag `CS.cfg`. Changing it requires editing that file while `pki-tomcatd` is stopped.
+
+> ⚠️ Editing `CS.cfg` while `pki-tomcatd` is running risks the change being overwritten on shutdown and can corrupt the CA configuration. **Stop the service first, back up `CS.cfg`, then edit.** Never enable CRL generation on more than one server at a time.
+
+```bash
+# --- On the OLD CRL master (ipa1): DISABLE CRL generation ---
+# 1. Stop the CA before editing CS.cfg
+sudo systemctl stop pki-tomcatd@pki-tomcat.service
+
+# 2. Back up CS.cfg first
+sudo cp -a /etc/pki/pki-tomcat/ca/CS.cfg \
+    /etc/pki/pki-tomcat/ca/CS.cfg.bak.$(date +%F)
+
+# 3. Disable CRL generation
+sudo sed -i \
+    's/^ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
+    /etc/pki/pki-tomcat/ca/CS.cfg
+
+# 4. Start the CA again
+sudo systemctl start pki-tomcatd@pki-tomcat.service
+
+
+# --- On the NEW CRL master (ipa2): ENABLE CRL generation ---
+sudo systemctl stop pki-tomcatd@pki-tomcat.service
+sudo cp -a /etc/pki/pki-tomcat/ca/CS.cfg \
+    /etc/pki/pki-tomcat/ca/CS.cfg.bak.$(date +%F)
+sudo sed -i \
+    's/^ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
+    /etc/pki/pki-tomcat/ca/CS.cfg
+sudo systemctl start pki-tomcatd@pki-tomcat.service
+
+# --- Verify: exactly one master enabled, CRL fresh on the new one ---
+curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
+    openssl crl -inform DER -noout -lastupdate -nextupdate
+sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
+```
+
+> Only one server should have `ca.crl.MasterCRL.enable=true` after the move. Validate the published CRL timestamps before relying on the new master.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -505,13 +522,13 @@ sudo getcert list | grep -E "status|ca-error"
 
 ### 7.1 DNS Replication
 
-DNS zones in FreeIPA are stored in LDAP and automatically replicated as part of the `dc=ipa,dc=example,dc=com` suffix. No separate DNS replication agreement is needed.
+DNS zones in FreeIPA are stored in LDAP and automatically replicated as part of the `dc=example,dc=com` suffix. No separate DNS replication agreement is needed.
 
 ```mermaid
 graph LR
     IPA1["IPA + DNS<br/>ipa1.example.com<br/>BIND reads from local 389-DS"]
     IPA2["IPA + DNS<br/>ipa2.example.com<br/>BIND reads from local 389-DS"]
-    LDAP["Shared LDAP suffix<br/>cn=dns,dc=ipa,dc=example,dc=com"]
+    LDAP["Shared LDAP suffix<br/>cn=dns,dc=example,dc=com"]
 
     IPA1 <-->|LDAP replication| IPA2
     IPA1 -->|bind-dyndb-ldap| LDAP
@@ -580,6 +597,8 @@ sudo ipa-healthcheck --all --output-type json | \
 ```
 
 ### 8.2 Replication Lag Monitoring
+
+📝 The `-p 'DM_Password'` argument shown below exposes the Directory Manager password to shell history and the process list (`ps`). Omit `-p` to be prompted interactively instead — preferred on shared or production hosts. The same applies to every `ipa-replica-manage -p` call in this module.
 
 ```bash
 # Check replication status via ipa-replica-manage
@@ -686,7 +705,7 @@ sequenceDiagram
 # Search for conflict entries (they have nsds5ReplConflict attribute)
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(nsds5ReplConflict=*)" \
     dn nsds5ReplConflict
 
@@ -700,7 +719,7 @@ sudo ldapsearch -x -H ldap://localhost \
 # Step 1: Identify the conflict
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(nsds5ReplConflict=*)" dn nsds5ReplConflict uid
 
 # Step 2: Review conflicting entries
@@ -710,25 +729,34 @@ sudo ldapsearch -x -H ldap://localhost \
 # Step 3: Keep the correct one — delete the conflict entry
 sudo ldapdelete -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    "nsuniqueid=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx+uid=jsmith,cn=users,cn=accounts,dc=ipa,dc=example,dc=com"
+    "nsuniqueid=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx+uid=jsmith,cn=users,cn=accounts,dc=example,dc=com"
 
 # OR: if the conflict entry is the correct one, rename it to the proper DN
 # (use ldapmodrdn to remove the nsuniqueid prefix)
 ```
 
-### 9.4 Tombstone and Resurrect
+### 9.4 Tombstones
 
-When an entry is deleted during a network partition and then modified on the other side:
+When an entry is deleted, 389-DS keeps a hidden **tombstone** so the deletion can replicate to peers.
 
 ```bash
 # Find tombstone entries
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(objectClass=nsTombstone)" dn
+```
 
-# Tombstones are cleaned up automatically after 30 days (default)
-# To force cleanup:
+Tombstone purging is **automatic** and is governed by `nsDS5ReplicaTombstonePurgeInterval` (the interval at which expired tombstones are reaped). You do not purge tombstones with a `cleanallruv` task — that task is unrelated and is covered next.
+
+### 9.5 Cleaning a Decommissioned Replica's RUV (cleanallruv)
+
+The `cleanallruv` task removes the **Replica Update Vector (RUV)** left behind by a replica that has been *permanently removed* from the topology. It is **not** tombstone purging — it deletes the stale RUV element so remaining replicas stop expecting updates from a server that no longer exists.
+
+> ⚠️ **IRREVERSIBLE.** Run this only for a replica you have genuinely decommissioned. `replica-id` must be the **removed** replica's ID — cleaning the RUV of a live replica disrupts its replication. Confirm the ID first (see §10.3).
+
+```bash
+# replica-id MUST be the ID of the REMOVED replica (not a live one)
 sudo ldapmodify -x -H ldap://localhost \
     -D "cn=Directory Manager" -W << 'EOF'
 dn: cn=cleanallruv_task,cn=tasks,cn=config
@@ -736,10 +764,12 @@ changetype: add
 objectClass: extensibleObject
 cn: cleanallruv_task
 replica-id: 7
-replica-base-dn: dc=ipa,dc=example,dc=com
+replica-base-dn: dc=example,dc=com
 replica-force-cleaning: yes
 EOF
 ```
+
+For normal decommissioning, prefer the higher-level `ipa-replica-manage clean-ruv <replica-id>` wrapper in [§10.3](#103-clean-replica-ids) rather than crafting this raw task by hand.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -751,10 +781,10 @@ EOF
 
 ```mermaid
 flowchart TD
-    A[Plan decommission of ipa-old] --> B{Is it CRL master?}
-    B -- Yes --> B1[Move CRL master: ipa config-mod --ca-renewal-master-server=...] --> C
+    A[Plan decommission of ipa-old] --> B{Is it CRL generation master?}
+    B -- Yes --> B1["Move CRL master via CS.cfg (see 6.4)"] --> C
     B -- No --> C{Is it CA renewal master?}
-    C -- Yes --> C1[Move renewal master: ipa config-mod ...] --> D
+    C -- Yes --> C1["Move renewal master: ipa config-mod --ca-renewal-master-server=..."] --> D
     C -- No --> D{Is it the only CA?}
     D -- Yes --> D1[Install CA on another replica first] --> E
     D -- No --> E{Has ≥2 replication segments?}
@@ -790,8 +820,13 @@ After removing a replica, clean its Replica Update Vector (RUV) to prevent stale
 # Find the replica ID of the removed server
 sudo ipa-replica-manage -p 'DM_Password' list
 
-# Clean the RUV for the removed replica (run on each remaining replica)
+# Clean the RUV for the removed replica (run once; it cleans all peers)
+# ⚠️ Verify the replica-id belongs to a GENUINELY REMOVED replica before
+#    running — cleaning a live replica's RUV breaks its replication.
 sudo ipa-replica-manage -p 'DM_Password' clean-ruv <replica-id>
+
+# If a cleanup hangs or was started in error, abort it:
+sudo ipa-replica-manage -p 'DM_Password' abort-clean-ruv <replica-id>
 
 # Verify
 sudo ipa-replica-manage -p 'DM_Password' list
@@ -801,8 +836,9 @@ sudo ipa-replica-manage -p 'DM_Password' list
 
 ```bash
 # Remove the old replica's DNS records
-ipa dnsrecord-del example.com ipa-old --a-rec=192.168.1.99
-ipa dnsrecord-del example.com ipa-old --aaaa-rec=...
+# Replace <old-replica-ip> with the decommissioned server's actual A record
+ipa dnsrecord-del example.com ipa-old --a-rec=<old-replica-ip>
+ipa dnsrecord-del example.com ipa-old --aaaa-rec=<old-replica-ipv6>
 
 # Remove SRV records if BIND doesn't auto-update
 ipa dnsrecord-find example.com | grep ipa-old
@@ -838,7 +874,7 @@ sudo ipactl start
 mindmap
     root((ipa-backup))
         LDAP data
-            dc=ipa,dc=example,dc=com
+            dc=example,dc=com
             o=ipaca CA data
         Kerberos
             Principal database
@@ -867,6 +903,9 @@ sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 # After restore, re-initialize all other replicas from this one
 
 # Re-initialize replica from restored master
+# ⚠️ This OVERWRITES the target replica's ENTIRE database with a full copy
+#    from --from. Any data unique to the target that hasn't replicated out
+#    is lost. Run it ON the replica being rebuilt, pointing at a good source.
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
     --from=ipa1.example.com
 ```

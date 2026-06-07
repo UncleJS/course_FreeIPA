@@ -53,23 +53,23 @@ By the end of this module, you should be able to:
 
 ```mermaid
 flowchart TD
-    A[Start pre-install check] --> B{FQDN set?\nhostname -f}
-    B -->|No| B1[hostnamectl set-hostname\nipa.example.com]
+    A[Start pre-install check] --> B{"FQDN set?<br/>hostname -f"}
+    B -->|No| B1["hostnamectl set-hostname<br/>ipa.example.com"]
     B1 --> C
-    B -->|Yes| C{Forward DNS\nresolves FQDN?}
-    C -->|No| C1[Add A record or\n/etc/hosts entry]
+    B -->|Yes| C{"Forward DNS<br/>resolves FQDN?"}
+    C -->|No| C1["Add A record or<br/>/etc/hosts entry"]
     C1 --> D
-    C -->|Yes| D{Reverse DNS\nresolves IP?}
-    D -->|No| D1[Add PTR record or\n/etc/hosts entry]
+    C -->|Yes| D{"Reverse DNS<br/>resolves IP?"}
+    D -->|No| D1["Add PTR record or<br/>/etc/hosts entry"]
     D1 --> E
-    D -->|Yes| E{NTP synced?\nchronyc tracking}
-    E -->|No| E1[systemctl enable --now chronyd\nchronyc makestep]
+    D -->|Yes| E{"NTP synced?<br/>chronyc tracking"}
+    E -->|No| E1["systemctl enable --now chronyd<br/>chronyc makestep"]
     E1 --> F
-    E -->|Yes| F{SELinux\nEnforcing?}
-    F -->|No| F1[setenforce 1\nEdit /etc/selinux/config]
+    E -->|Yes| F{"SELinux<br/>Enforcing?"}
+    F -->|No| F1["setenforce 1<br/>Edit /etc/selinux/config"]
     F1 --> G
     F -->|Yes| G{RAM >= 4GB?}
-    G -->|No| G1[⚠️ Minimum not met\nAdd RAM or use --no-pkinit]
+    G -->|No| G1["⚠️ Minimum not met<br/>Add RAM or use --no-pkinit"]
     G -->|Yes| H[✅ Ready to install]
 ```
 
@@ -85,10 +85,13 @@ failures trace back to misconfigured DNS or hostname.
 - Reverse lookup: `IP → FQDN` must work **before** the installer runs
 - `/etc/hosts` must contain the FQDN (not just the short name)
 
-```bash
-# Correct /etc/hosts entry
-192.168.1.10  ipa.example.com  ipa
+Correct `/etc/hosts` entry (file content — add this line to `/etc/hosts`, do not run it):
 
+```text
+192.168.1.10  ipa.example.com  ipa
+```
+
+```bash
 # Verify forward lookup (via /etc/hosts or DNS)
 getent hosts ipa.example.com    # must return 192.168.1.10
 dig +short ipa.example.com      # test DNS independently of /etc/hosts
@@ -132,10 +135,17 @@ helps if you have custom firewall policies.
 firewall-cmd --permanent --add-service=freeipa-ldap
 firewall-cmd --permanent --add-service=freeipa-ldaps
 firewall-cmd --permanent --add-service=freeipa-replication
+firewall-cmd --permanent --add-service=kerberos       # Kerberos :88
+firewall-cmd --permanent --add-service=kpasswd        # kpasswd :464
+firewall-cmd --permanent --add-service=http           # HTTP :80
+firewall-cmd --permanent --add-service=https          # HTTPS :443
 firewall-cmd --permanent --add-service=dns
 firewall-cmd --permanent --add-service=ntp
 firewall-cmd --reload
 ```
+
+> 📝 If you skip this step, `ipa-server-install` opens the remaining required
+> ports itself. The full post-install port list is shown in section 5 below.
 
 ### 1.4 SELinux
 
@@ -221,9 +231,16 @@ ipa-server-install \
   --forwarder=8.8.8.8 \
   --forwarder=8.8.4.4 \
   --reverse-zone=1.168.192.in-addr.arpa. \
-  --no-dnssec-validation \   # ⚠️ lab-only — omit in production
+  --no-dnssec-validation \
   --unattended
 ```
+
+> ⚠️ `--no-dnssec-validation` is **lab-only** — omit it in production so the
+> server validates DNSSEC.
+
+> 📝 `--reverse-zone=1.168.192.in-addr.arpa.` creates a specific reverse zone.
+> Alternatively use `--auto-reverse` (shown in section 6) to let the installer
+> derive the reverse zone from the server's IP. They are alternatives — use one.
 
 > ⚠️ Passwords on the command line appear in shell history and `ps` output.
 > In production, use a vault or prompt interactively. The `--admin-password`
@@ -249,19 +266,19 @@ sequenceDiagram
     participant DNS as BIND DNS
     participant HTTP as httpd
 
-    I->>SYS: Pre-flight checks\n(hostname, DNS, ports, SELinux)
-    I->>DS: Configure 389-DS instance\n(EXAMPLE-COM)
+    I->>SYS: Pre-flight checks<br/>(hostname, DNS, ports, SELinux)
+    I->>DS: Configure 389-DS instance<br/>(EXAMPLE-COM)
     DS-->>I: 389-DS running on :389
-    I->>KRB: Configure krb5kdc\n(create realm EXAMPLE.COM)
+    I->>KRB: Configure krb5kdc<br/>(create realm EXAMPLE.COM)
     KRB-->>I: KDC running on :88
-    I->>CA: Install Dogtag PKI\n(generate root CA, issue IPA certs)
+    I->>CA: Install Dogtag PKI<br/>(generate root CA, issue IPA certs)
     CA-->>I: CA running, IPA CA cert signed
-    I->>DNS: Configure BIND\n(create forward + reverse zones\nadd SRV records)
+    I->>DNS: Configure BIND<br/>("create forward + reverse zones<br/>add SRV records")
     DNS-->>I: named running on :53
-    I->>HTTP: Configure Apache httpd\n(IPA API, Web UI, mod_auth_gssapi)
+    I->>HTTP: Configure Apache httpd<br/>(IPA API, Web UI, mod_auth_gssapi)
     HTTP-->>I: httpd running on :443
-    I->>DS: Import CA cert chain\n(certupdate)
-    I->>SYS: Configure firewalld\nConfigure SELinux contexts\nEnable all services
+    I->>DS: Import CA cert chain<br/>(certupdate)
+    I->>SYS: Configure firewalld<br/>Configure SELinux contexts<br/>Enable all services
     I-->>SYS: ✅ Installation complete
 ```
 
@@ -277,14 +294,14 @@ slowest phase).
 
 ```mermaid
 flowchart TD
-    A[Install complete] --> B[ipactl status\nAll services running?]
-    B -->|Some failed| B1[Check journalctl -u <service>\nSee Module 14]
-    B -->|All running| C[kinit admin\nAuthentication works?]
-    C -->|GSSAPI error| C1[Check DNS SRV records\ndig _kerberos._tcp.example.com SRV]
-    C -->|Success| D[ipa user-find\nAPI responds?]
+    A[Install complete] --> B["ipactl status<br/>All services running?"]
+    B -->|Some failed| B1["Check journalctl -u <service><br/>See Module 14"]
+    B -->|All running| C["kinit admin<br/>Authentication works?"]
+    C -->|GSSAPI error| C1["Check DNS SRV records<br/>dig _kerberos._tcp.example.com SRV"]
+    C -->|Success| D["ipa user-find<br/>API responds?"]
     D -->|Error| D1[Check httpd: systemctl status httpd]
-    D -->|Lists admin| E[Web UI reachable?\nhttps://ipa.example.com/ipa/ui]
-    E -->|Certificate error| E1[Add IPA CA to browser\nor use curl --cacert]
+    D -->|Lists admin| E["Web UI reachable?<br/>https://ipa.example.com/ipa/ui"]
+    E -->|Certificate error| E1["Add IPA CA to browser<br/>or use curl --cacert"]
     E -->|Loads login| F[✅ Installation verified]
 ```
 
@@ -303,7 +320,7 @@ dig ipa.example.com
 dig -x 192.168.1.10
 
 # (server) Test Kerberos SRV records
-dig +short _kerberos._tcp.EXAMPLE.COM SRV
+dig +short _kerberos._tcp.example.com SRV
 dig +short _ldap._tcp.example.com SRV
 
 # (server) View installed CA certificate
@@ -324,6 +341,10 @@ Navigate to `https://ipa.example.com/ipa/ui` in a browser on a host that:
 2. Can resolve `ipa.example.com`
 
 **To trust the IPA CA in your browser:**
+
+> 📝 `curl -k` fetches the CA certificate over an unverified connection (you are
+> downloading the CA you are about to trust). Verify its fingerprint out-of-band,
+> or prefer the `scp` method below which copies `/etc/ipa/ca.crt` over SSH.
 
 ```bash
 # (server) Export the IPA CA certificate
@@ -378,15 +399,15 @@ firewall-cmd --list-services
 ```mermaid
 graph LR
     subgraph "IPA Server Firewall Ports"
-        A["TCP 80\n(redirect to 443)"]
-        B["TCP 443\n(Web UI + API)"]
-        C["TCP+UDP 389\n(LDAP)"]
-        D["TCP+UDP 636\n(LDAPS)"]
-        E["TCP+UDP 88\n(Kerberos)"]
-        F["TCP+UDP 464\n(kpasswd)"]
-        G["TCP+UDP 53\n(DNS)"]
-        H["UDP 123\n(NTP)"]
-        I["TCP 7389\n(Dogtag replica)"]
+        A["TCP 80<br/>(redirect to 443)"]
+        B["TCP 443<br/>(Web UI + API)"]
+        C["TCP 389<br/>(LDAP)"]
+        D["TCP 636<br/>(LDAPS)"]
+        E["TCP+UDP 88<br/>(Kerberos)"]
+        F["TCP+UDP 464<br/>(kpasswd)"]
+        G["TCP+UDP 53<br/>(DNS)"]
+        H["UDP 123<br/>(NTP)"]
+        I["TCP 7389<br/>(Dogtag replica)"]
     end
 ```
 
@@ -459,6 +480,7 @@ ipa-server-install \
   --forwarder=8.8.8.8 \
   --auto-reverse \
   --unattended
+# Note: --auto-reverse is an alternative to --reverse-zone=... (see section 3.2)
 
 # ── STEP 4: Verify installation ──────────────────────────────────────────────
 
@@ -503,7 +525,7 @@ df -h / /var /tmp
 > If DNS, time, and disk space look healthy, re-run the installer only after reading the failure point in the logs. Avoid guessing and re-running blindly.
 
 **Expected final state:**
-- `ipactl status` shows all 8 services as `RUNNING` (dirsrv, krb5kdc, kadmin, pki-tomcatd, named, httpd, certmonger, sssd)
+- `ipactl status` shows all IPA-managed services as `RUNNING` (Directory Service/dirsrv, krb5kdc, kadmin, named, httpd, ipa-custodia, pki-tomcatd, ipa-otpd, ipa-dnskeysyncd). Note: `ipactl` does not manage `certmonger` or `sssd` — check those with `systemctl status`.
 - `kinit admin` succeeds
 - `ipa user-find` returns `admin`
 - `ipa-healthcheck` shows no `ERROR` or `CRITICAL` results

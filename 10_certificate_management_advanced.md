@@ -69,14 +69,14 @@ the IPA root CA. Use cases:
 
 ```mermaid
 graph TD
-    ROOT["IPA Root CA\ncn=Certificate Authority\nO=EXAMPLE.COM\nSelf-signed"] --> SUB1["Sub-CA: VPN Authority\ncn=VPN Authority\nO=EXAMPLE.COM\nSigned by IPA Root CA"]
-    ROOT --> SUB2["Sub-CA: User Certificate Authority\ncn=User CA\nO=EXAMPLE.COM\nSigned by IPA Root CA"]
-    ROOT --> SUB3["Sub-CA: Application\ncn=App CA\nO=EXAMPLE.COM"]
-    SUB1 --> V1["VPN Server Cert\nCN=vpn.example.com"]
-    SUB1 --> V2["VPN Client Cert\nCN=jdoe VPN"]
-    SUB2 --> U1["User Signing Cert\nCN=jdoe"]
-    SUB2 --> U2["Smart Card Cert\nCN=alice"]
-    SUB3 --> A1["App Service Cert\nCN=api.example.com"]
+    ROOT["IPA Root CA<br/>cn=Certificate Authority<br/>O=EXAMPLE.COM<br/>Self-signed"] --> SUB1["Sub-CA: VPN Authority<br/>cn=VPN Authority<br/>O=EXAMPLE.COM<br/>Signed by IPA Root CA"]
+    ROOT --> SUB2["Sub-CA: User Certificate Authority<br/>cn=User CA<br/>O=EXAMPLE.COM<br/>Signed by IPA Root CA"]
+    ROOT --> SUB3["Sub-CA: Application<br/>cn=App CA<br/>O=EXAMPLE.COM"]
+    SUB1 --> V1["VPN Server Cert<br/>CN=vpn.example.com"]
+    SUB1 --> V2["VPN Client Cert<br/>CN=jdoe VPN"]
+    SUB2 --> U1["User Signing Cert<br/>CN=jdoe"]
+    SUB2 --> U2["Smart Card Cert<br/>CN=alice"]
+    SUB3 --> A1["App Service Cert<br/>CN=api.example.com"]
 ```
 
 ### 1.2 Creating Sub-CAs
@@ -112,7 +112,20 @@ ipa ca-del vpn-ca
 ### 1.3 Issuing Certificates from a Sub-CA
 
 To use a sub-CA for certificate issuance, you need a profile that references it,
-and then specify the CA when requesting:
+and then specify the CA when requesting.
+
+> 📝 Sub-CAs are NOT covered by the default `hosts_services_caIPAserviceCert`
+> CA ACL. Without a CA ACL that binds the sub-CA + profile + requesting
+> host/service, `ipa cert-request --ca=...` fails with
+> `Operation not allowed by CA ACL`. Create the binding first:
+
+```bash
+# Create a CA ACL and bind the sub-CA, the profile, and the requestor
+ipa caacl-add webapp-ca-acl
+ipa caacl-add-ca webapp-ca-acl --cas=webapp-ca
+ipa caacl-add-profile webapp-ca-acl --certprofiles=caIPAserviceCert
+ipa caacl-add-host webapp-ca-acl --hosts=web01.example.com   # or --services=...
+```
 
 ```bash
 # Request a certificate from a specific sub-CA
@@ -257,8 +270,8 @@ certificates from the IPA CA automatically.
 ```mermaid
 graph TD
     subgraph "IPA ACME Endpoint"
-        ACME[IPA ACME Server\nhttps://ipa1.example.com/acme/directory]
-        ACME -->|issues via| CA[Dogtag CA\nacmeIPAServerCert profile]
+        ACME["IPA ACME Server<br/>https://ipa1.example.com/acme/directory"]
+        ACME -->|issues via| CA["Dogtag CA<br/>acmeIPAServerCert profile"]
     end
     subgraph "ACME Clients"
         CB[certbot] -->|ACME RFC 8555| ACME
@@ -266,8 +279,8 @@ graph TD
         CD[Caddy server] -->|ACME RFC 8555| ACME
     end
     subgraph "Challenge Types"
-        ACME <-->|dns-01| DNS[IPA DNS\nor external DNS]
-        ACME <-->|http-01| HTTP[Port 80 on client\n.well-known/acme-challenge/]
+        ACME <-->|dns-01| DNS["IPA DNS<br/>or external DNS"]
+        ACME <-->|http-01| HTTP["Port 80 on client<br/>.well-known/acme-challenge/"]
         ACME <-->|tls-alpn-01| TLS[Port 443 on client]
     end
 ```
@@ -297,30 +310,30 @@ sequenceDiagram
     participant DNS as IPA DNS
     participant CA as Dogtag CA
 
-    C->>ACME: POST /acme/new-account\n(register with key pair)
+    C->>ACME: POST /acme/new-account<br/>(register with key pair)
     ACME-->>C: Account URL + Terms of Service
 
-    C->>ACME: POST /acme/new-order\n(request cert for webapp.example.com)
+    C->>ACME: POST /acme/new-order<br/>(request cert for webapp.example.com)
     ACME-->>C: Order URL + authorization URLs
 
     C->>ACME: GET authorization URL
-    ACME-->>C: Challenge: dns-01\ntoken: abc123
+    ACME-->>C: Challenge: dns-01<br/>token: abc123
 
-    Note over C: Create DNS TXT record:\n_acme-challenge.webapp.example.com\n= SHA256(keyAuthorization)
+    Note over C: Create DNS TXT record:<br/>_acme-challenge.webapp.example.com<br/>= SHA256(keyAuthorization)
 
-    C->>DNS: Update DNS TXT record\n(via nsupdate or API)
+    C->>DNS: Update DNS TXT record<br/>(via nsupdate or API)
     DNS-->>C: Record added
 
-    C->>ACME: POST challenge URL\n(tell server to validate)
+    C->>ACME: POST challenge URL<br/>(tell server to validate)
     ACME->>DNS: Query _acme-challenge.webapp.example.com TXT
     DNS-->>ACME: abc123... (expected value)
     ACME-->>C: Challenge validated ✓
 
-    C->>ACME: POST /acme/finalize\n(submit CSR)
-    ACME->>CA: Issue certificate\n(acmeIPAServerCert profile)
+    C->>ACME: POST /acme/finalize<br/>(submit CSR)
+    ACME->>CA: Issue certificate<br/>(acmeIPAServerCert profile)
     CA-->>ACME: Certificate issued
 
-    ACME-->>C: POST /acme/certificate\nPEM certificate
+    ACME-->>C: POST /acme/certificate<br/>PEM certificate
 ```
 
 ### 3.4 Using certbot with IPA ACME
@@ -346,6 +359,13 @@ certbot certonly \
   --domain webapp.example.com
 
 # Or use dns-01 with nsupdate for automated DNS challenge
+# ⚠️ PREREQUISITE: IPA's integrated BIND uses GSS-TSIG (Kerberos) for dynamic
+#    updates by default and does NOT accept static-TSIG RFC2136 updates out of
+#    the box. To use dns-rfc2136 you must manually provision a TSIG key and add
+#    a matching `update-policy grant ... key ...` (or `allow-update key ...`)
+#    stanza to the IPA named configuration for the target zone.
+# 📝 For most setups it is simpler to use the IPA ACME endpoint with an http-01
+#    challenge (no DNS plumbing), or the --manual dns-01 flow shown above.
 certbot certonly \
   --authenticator dns-rfc2136 \
   --dns-rfc2136-credentials /etc/certbot/rfc2136.ini \
@@ -406,13 +426,13 @@ ipa-server-install \
 
 ```mermaid
 flowchart TD
-    A[Backup current IPA\nipa-backup --online] --> B[Generate new CSR\nipa-cacert-manage renew\n--external-ca]
-    B --> C[Submit CSR to\nexternal CA]
-    C --> D[Receive signed cert\n+ CA chain]
-    D --> E[Import signed cert\nipa-cacert-manage renew\n--external-cert-file=...]
-    E --> F[Update all components\nipa-certupdate]
-    F --> G[Update all clients\nipa-certupdate on each]
-    G --> H[Verify\nipa-healthcheck]
+    A["Backup current IPA<br/>ipa-backup --online"] --> B["Generate new CSR<br/>ipa-cacert-manage renew<br/>--external-ca"]
+    B --> C["Submit CSR to<br/>external CA"]
+    C --> D["Receive signed cert<br/>+ CA chain"]
+    D --> E["Import signed cert<br/>ipa-cacert-manage renew<br/>--external-cert-file=..."]
+    E --> F["Update all components<br/>ipa-certupdate"]
+    F --> G["Update all clients<br/>ipa-certupdate on each"]
+    G --> H["Verify<br/>ipa-healthcheck"]
 ```
 
 ```bash
@@ -447,13 +467,13 @@ is revoked in real-time, without downloading the full CRL.
 ```mermaid
 graph TD
     subgraph "OCSP Validation"
-        CLIENT["TLS Client\nbrowser / curl"] -->|"1. connects to server"| SERVER["Server with IPA cert"]
-        CLIENT -->|"2. extract OCSP URL\nAIA extension"| OCSP_URL["Dogtag OCSP URL\nipa1.example.com/ca/ocsp"]
-        CLIENT -->|"3. OCSP Request\nserial number"| OCSP["Dogtag OCSP Responder"]
-        OCSP -->|"check serial"| DB[("Dogtag cert DB\nrevocation list")]
+        CLIENT["TLS Client<br/>browser / curl"] -->|"1. connects to server"| SERVER["Server with IPA cert"]
+        CLIENT -->|"2. extract OCSP URL<br/>AIA extension"| OCSP_URL["Dogtag OCSP URL<br/>ipa1.example.com/ca/ocsp"]
+        CLIENT -->|"3. OCSP Request<br/>serial number"| OCSP["Dogtag OCSP Responder"]
+        OCSP -->|"check serial"| DB[("Dogtag cert DB<br/>revocation list")]
         DB -->|"revocation status"| OCSP
-        OCSP -->|"4. OCSP Response\nsigned: good/revoked/unknown"| CLIENT
-        CLIENT -->|"5. Accept or reject\nTLS connection"| SERVER
+        OCSP -->|"4. OCSP Response<br/>signed: good/revoked/unknown"| CLIENT
+        CLIENT -->|"5. Accept or reject<br/>TLS connection"| SERVER
     end
 ```
 
@@ -507,17 +527,17 @@ sequenceDiagram
     participant OCSP as OCSP Responder
     participant CRL as CRL Distribution Point
 
-    ADM->>IPA: ipa cert-revoke <serial>\n--revocation-reason=1 (Key Compromise)
-    IPA->>CA: Mark cert N as revoked\nreason: keyCompromise
+    ADM->>IPA: ipa cert-revoke <serial><br/>--revocation-reason=1 (Key Compromise)
+    IPA->>CA: Mark cert N as revoked<br/>reason: keyCompromise
     CA->>CA: Update internal revocation DB
-    CA->>OCSP: OCSP responder reflects\nrevocation immediately
-    CA->>CRL: Schedule CRL regeneration\n(next CRL update interval)
+    CA->>OCSP: OCSP responder reflects<br/>revocation immediately
+    CA->>CRL: Schedule CRL regeneration<br/>(next CRL update interval)
 
-    Note over OCSP: Real-time: any OCSP check\nfor serial N now returns "revoked"
+    Note over OCSP: Real-time: any OCSP check<br/>for serial N now returns "revoked"
 
-    Note over CRL: Periodic: CRL file updated\nand published to /ipa/crl/
+    Note over CRL: Periodic: CRL file updated<br/>and published to /ipa/crl/
 
-    ADM->>IPA: Optionally request new cert:\nipa cert-request (new CSR)
+    ADM->>IPA: Optionally request new cert:<br/>ipa cert-request (new CSR)
     IPA-->>ADM: New certificate with new serial
 ```
 
@@ -532,22 +552,22 @@ operations:
 
 ```mermaid
 flowchart TD
-    A["FIPS mode enabled\nfips-mode-setup --enable"] --> B{"Certificate operation"}
+    A["FIPS mode enabled<br/>fips-mode-setup --enable"] --> B{"Certificate operation"}
 
     B -->|Key generation| C{"Algorithm?"}
-    C -->|"RSA less than 2048 bits"| FAIL1["REJECTED\nMinimum RSA = 2048 in FIPS 140-3\n3072+ recommended for new keys"]
-    C -->|"RSA 2048-3071"| OK1a["ACCEPTED legacy\nRecommend migrating to 3072+"]
+    C -->|"RSA less than 2048 bits"| FAIL1["REJECTED<br/>Minimum RSA = 2048 in FIPS 140-3<br/>3072+ recommended for new keys"]
+    C -->|"RSA 2048-3071"| OK1a["ACCEPTED legacy<br/>Recommend migrating to 3072+"]
     C -->|"RSA 3072 or above"| OK1["ALLOWED - recommended"]
     C -->|"ECDSA P-256 or P-384"| OK2["ALLOWED"]
     C -->|"ECDSA P-521"| OK3["ALLOWED"]
     C -->|DSA| FAIL2["REJECTED"]
 
     B -->|Signature algorithm| D{"Hash?"}
-    D -->|SHA-1| FAIL3["REJECTED\nSHA-1 prohibited in FIPS"]
+    D -->|SHA-1| FAIL3["REJECTED<br/>SHA-1 prohibited in FIPS"]
     D -->|"SHA-256 / SHA-384 / SHA-512"| OK4["ALLOWED"]
 
     B -->|Certificate profiles| E{"Profile uses SHA-1?"}
-    E -->|Yes| FAIL4["Profile must be updated\nChange to SHA256withRSA or SHA384withECDSA"]
+    E -->|Yes| FAIL4["Profile must be updated<br/>Change to SHA256withRSA or SHA384withECDSA"]
     E -->|No| OK5["Profile allowed"]
 ```
 
@@ -601,16 +621,16 @@ Multiple tools monitor certificate expiry in an IPA environment:
 ```mermaid
 graph TD
     subgraph "Monitoring Tools"
-        HLT[ipa-healthcheck\nAll IPA certs + services] -->|output| RSLT[Pass/Warning/Error/Critical]
-        GETCERT[getcert list\nCertmonger-tracked certs] -->|output| STATES[MONITORING/NEED_TO_SUBMIT/...]
-        IPA_CERT[ipa cert-find\n--validnotafter-to=DATE] -->|output| CERTS[Expiring cert list]
-        OPENSSL[openssl x509 -checkend\n86400 * days] -->|output| BINARY[0=OK 1=Expired]
+        HLT["ipa-healthcheck<br/>All IPA certs + services"] -->|output| RSLT[Pass/Warning/Error/Critical]
+        GETCERT["getcert list<br/>Certmonger-tracked certs"] -->|output| STATES[MONITORING/NEED_TO_SUBMIT/...]
+        IPA_CERT["ipa cert-find<br/>--validnotafter-to=DATE"] -->|output| CERTS[Expiring cert list]
+        OPENSSL["openssl x509 -checkend<br/>86400 * days"] -->|output| BINARY[0=OK 1=Expired]
     end
 
     subgraph "Alert Integrations"
         RSLT --> EMAIL[Email via cron]
-        RSLT --> PROM[Prometheus\nipa-healthcheck-exporter]
-        STATES --> NAGIO[Nagios / Zabbix\ncustom check script]
+        RSLT --> PROM["Prometheus<br/>ipa-healthcheck-exporter"]
+        STATES --> NAGIO["Nagios / Zabbix<br/>custom check script"]
     end
 ```
 
@@ -672,10 +692,19 @@ ipa ca-show webapp-ca
 
 ipa service-add HTTP/api.example.com
 
+# 📝 Sub-CAs are not covered by the default CA ACL. Bind the sub-CA + profile +
+#    requesting service in a CA ACL first, otherwise cert-request is rejected
+#    with "Operation not allowed by CA ACL".
+ipa caacl-add webapp-ca-acl
+ipa caacl-add-ca webapp-ca-acl --cas=webapp-ca
+ipa caacl-add-profile webapp-ca-acl --certprofiles=caIPAserviceCert
+ipa caacl-add-service webapp-ca-acl --services=HTTP/api.example.com
+
 openssl req -newkey rsa:3072 -nodes \
   -keyout /tmp/api.key \
   -out /tmp/api.csr \
-  -subj "/CN=api.example.com"
+  -subj "/CN=api.example.com" \
+  -addext "subjectAltName=DNS:api.example.com"
 
 ipa cert-request /tmp/api.csr \
   --principal=HTTP/api.example.com \

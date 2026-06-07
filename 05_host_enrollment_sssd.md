@@ -59,17 +59,17 @@ When you run `ipa-client-install` on a Linux host, it:
 
 ```mermaid
 graph TD
-    A[ipa-client-install] --> B[Discover IPA server\nvia DNS SRV records]
-    B --> C[Authenticate to IPA API\nusing admin credentials or OTP]
-    C --> D[Create host object\nin IPA LDAP]
-    D --> E[Retrieve host keytab\n/etc/krb5.keytab]
-    E --> F[Request host certificate\nfrom Dogtag CA via certmonger]
-    F --> G[Configure SSSD\n/etc/sssd/sssd.conf]
-    G --> H[Configure PAM\n/etc/pam.d/]
-    H --> I[Configure NSS\n/etc/nsswitch.conf]
-    I --> J[Configure krb5.conf\n/etc/krb5.conf]
-    J --> K[Configure NTP\n/etc/chrony.conf]
-    K --> L[Import IPA CA cert\n/etc/ipa/ca.crt]
+    A[ipa-client-install] --> B["Discover IPA server<br/>via DNS SRV records"]
+    B --> C["Authenticate to IPA API<br/>using admin credentials or OTP"]
+    C --> D["Create host object<br/>in IPA LDAP"]
+    D --> E["Retrieve host keytab<br/>/etc/krb5.keytab"]
+    E --> F["(optional) Request host certificate<br/>via certmonger — only with --request-cert"]
+    F --> G["Configure SSSD<br/>/etc/sssd/sssd.conf"]
+    G --> H["Configure PAM<br/>/etc/pam.d/"]
+    H --> I["Configure NSS<br/>/etc/nsswitch.conf"]
+    I --> J["Configure krb5.conf<br/>/etc/krb5.conf"]
+    J --> K["Configure NTP<br/>/etc/chrony.conf"]
+    K --> L["Import IPA CA cert<br/>/etc/ipa/ca.crt"]
     L --> M[Start SSSD + certmonger]
     M --> N[✅ Host enrolled]
 ```
@@ -152,12 +152,14 @@ sequenceDiagram
     C->>IPA: Authenticate (admin creds or OTP)
     IPA-->>C: Kerberos TGT for admin
     C->>IPA: ipa host-add client01.example.com
-    IPA-->>C: Host object created\n(host/client01.example.com@EXAMPLE.COM principal)
+    IPA-->>C: Host object created<br/>(host/client01.example.com@EXAMPLE.COM principal)
     C->>IPA: ipa-getkeytab (host/client01)
     IPA-->>C: /etc/krb5.keytab
-    C->>CA: Certificate request for host/client01
-    CA-->>C: Host certificate issued\nstored via certmonger
-    C->>C: Write sssd.conf, krb5.conf,\nnsswitch.conf, pam.d/*
+    opt only if --request-cert is passed
+        C->>CA: Certificate request for host/client01
+        CA-->>C: Host certificate issued<br/>stored via certmonger
+    end
+    C->>C: Write sssd.conf, krb5.conf,<br/>nsswitch.conf, pam.d/*
     C->>KDC: kinit -k (verify keytab works)
     KDC-->>C: TGT issued
     C->>C: systemctl restart sssd
@@ -185,7 +187,7 @@ graph TD
         NSS --> NSSP[NSS Responder]
         RESP --> BE[IPA Backend Provider]
         NSSP --> BE
-        BE --> CACHE[(SSSD Cache\n/var/lib/sss/db/)]
+        BE --> CACHE["("SSSD Cache<br/>/var/lib/sss/db/")"]
         BE --> KRB[Kerberos Provider]
         BE --> LDAP[LDAP Provider]
         BE --> HBAC_P[HBAC Provider]
@@ -232,7 +234,8 @@ krb5_store_password_if_offline = true
 
 # Cache settings
 cache_credentials = true
-krb5_ccachedir = /tmp
+# KCM is the RHEL 10 default credential cache (served by sssd-kcm).
+# Do not also set krb5_ccachedir — a directory cache contradicts KCM.
 krb5_ccname_template = KCM:
 
 # Home directory creation
@@ -282,26 +285,26 @@ journalctl -u sssd -f       # follow logs
 
 ```mermaid
 flowchart TD
-    A[User attempts login\ne.g. SSH to client01] --> B{SSSD online?\nCan reach IPA server?}
+    A["User attempts login<br/>e.g. SSH to client01"] --> B{"SSSD online?<br/>Can reach IPA server?"}
 
-    B -->|Online| C[SSSD queries LDAP\nfor user attributes]
-    C --> D{User exists\nin IPA?}
+    B -->|Online| C["SSSD queries LDAP<br/>for user attributes"]
+    C --> D{"User exists<br/>in IPA?"}
     D -->|No| Z[Login denied]
-    D -->|Yes| E{HBAC rules\nallow this user\non this host?}
+    D -->|Yes| E{"HBAC rules<br/>allow this user<br/>on this host?"}
     E -->|No| Z
-    E -->|Yes| F[PAM sends password\nto Kerberos KDC]
-    F --> G{KDC auth\nsucceeds?}
+    E -->|Yes| F["PAM sends password<br/>to Kerberos KDC"]
+    F --> G{"KDC auth<br/>succeeds?"}
     G -->|No| Z
-    G -->|Yes| H[TGT stored in KCM\nHome dir created]
-    H --> I[✅ Login success\nKerberos SSO active]
+    G -->|Yes| H["TGT stored in KCM<br/>Home dir created"]
+    H --> I["✅ Login success<br/>Kerberos SSO active"]
 
-    B -->|Offline\nIPA unreachable| J[Use cached credentials]
-    J --> K{Cached creds\nstill valid?\noffline_credentials_expiration}
+    B -->|"Offline<br/>IPA unreachable"| J[Use cached credentials]
+    J --> K{"Cached creds<br/>still valid?<br/>offline_credentials_expiration"}
     K -->|Expired| Z
-    K -->|Valid| L[Hash password vs\ncached hash]
+    K -->|Valid| L["Hash password vs<br/>cached hash"]
     L --> M{Match?}
     M -->|No| Z
-    M -->|Yes| N[✅ Offline login\nNo Kerberos ticket\nNo SSO]
+    M -->|Yes| N["✅ Offline login<br/>No Kerberos ticket<br/>No SSO"]
 ```
 
 > 📝 Offline login gives shell access but **no Kerberos ticket**. The most recent successful online lookup determines what SSSD can still reuse:
@@ -309,6 +312,11 @@ flowchart TD
 > - Cached HBAC decisions can still allow or deny a login until the cache expires.
 > - `sudo` policy that was never cached, or that needs a fresh lookup, usually fails until IPA is reachable again.
 > - Kerberos-backed services such as NFSv4 with Kerberos still fail because no new TGT is issued.
+
+> 📝 With multiple IPA servers and `_srv_` DNS discovery, blackholing a single
+> server IP will NOT take the client offline — SSSD simply fails over to another
+> IPA server. In a replica lab, blackhole **every** IPA server IP (and any VIP) to
+> force the offline state.
 
 ```bash
 # Prefer a reversible route blackhole instead of modifying firewalld policy
@@ -351,6 +359,10 @@ automount:  sss files
 - `files` — query local `/etc/passwd`, `/etc/group`
 
 The order matters: `sss files` means "check SSSD first, then local files".
+
+> 📝 For SSSD-delivered sudo rules to take effect, `/etc/nsswitch.conf` must also
+> contain `sudoers: files sss` (paired with `services = ... sudo` in `[sssd]`,
+> enabled earlier in the SSSD config). Without this line, sudo never queries SSSD.
 
 ### 5.2 PAM Stack
 
@@ -445,19 +457,27 @@ ipa automember-rebuild --type=hostgroup
 
 ## 7. Host-Level Certificates
 
-Every enrolled host gets a certificate for its `host/` principal, managed by
-certmonger. This cert is used for LDAP client auth and service-level operations.
+A host certificate for the `host/` principal is **not** requested by default.
+`ipa-client-install` only requests one if you pass `--request-cert`; otherwise the
+host authenticates with its keytab alone. You can request a host cert later with a
+`getcert request`. When present, the certificate is tracked and renewed by certmonger.
 
 ```bash
-# (client) View certmonger-tracked certificates
+# (client) View certmonger-tracked certificates — this is how you discover the
+# ACTUAL on-disk path of the host cert/key (it is not a fixed location)
 getcert list
 
-# (client) View the host certificate details
-getcert list -f /var/lib/ipa/certs/host.crt   # or path shown in getcert list
-openssl x509 -in /var/lib/ipa/certs/host.crt -text -noout | grep -A2 Subject
+# (client) Inspect a specific tracked cert — copy the "certificate:" path from the
+# 'getcert list' output above (do NOT assume /var/lib/ipa/certs/host.crt; it varies)
+CERT=$(getcert list | awk -F': ' '/certificate:/{print $2; exit}')
+openssl x509 -in "$CERT" -text -noout | grep -A2 Subject
 
 # (client) Check when certificates expire
-getcert list | grep -E "(subject|expires|status)"
+getcert list | grep -E "(expires|status|certificate:)"
+
+# (client) Request a host certificate after enrollment (if --request-cert was not used)
+# ipa-getcert request -f /etc/pki/tls/certs/host.crt -k /etc/pki/tls/private/host.key \
+#   -K host/client01.example.com
 
 # (server) View host certificate from IPA
 ipa host-show client01.example.com --all | grep -i cert
@@ -507,11 +527,13 @@ chronyc makestep
 
 dnf install -y ipa-client
 
+# --realm is omitted here on purpose: it is auto-derived from --domain
+# (example.com -> EXAMPLE.COM). Add --realm=EXAMPLE.COM to be explicit if you wish.
 ipa-client-install \
   --server=ipa.example.com \
   --domain=example.com \
   --principal=admin \
-  --password='S3cur3Admin!2026' \
+  --password='Admin_P@ssw0rd_Change_Me' \
   --mkhomedir \
   --unattended
 

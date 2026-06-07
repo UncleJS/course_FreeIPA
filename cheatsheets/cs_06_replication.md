@@ -40,7 +40,8 @@ ipa topologysegment-find --topologysuffix=domain
 ipa topologysegment-find --topologysuffix=ca
 
 # Show a specific segment
-ipa topologysegment-show domain ipa1-to-ipa2
+# Segment names are auto-generated (host-to-host) — get the exact name from topologysegment-find
+ipa topologysegment-show domain ipa1.example.com-to-ipa2.example.com
 
 # Add a new topology segment
 ipa topologysegment-add domain \
@@ -53,8 +54,8 @@ ipa topologysegment-add ca \
     --rightnode=ipa3.example.com \
     --direction=both
 
-# Remove a topology segment
-ipa topologysegment-del domain ipa2-to-ipa3
+# Remove a topology segment (use the auto-generated name from topologysegment-find)
+ipa topologysegment-del domain ipa2.example.com-to-ipa3.example.com
 
 # Verify topology is connected (no isolated replicas)
 ipa topologysuffix-verify domain
@@ -107,6 +108,7 @@ sudo ipa-server-install --uninstall
 ipa server-del ipa-old.example.com
 
 # Force remove (ignores connectivity issues)
+# ⚠️ Can orphan RUVs/topology segments — follow up with clean-ruv to clear stale RUVs
 ipa server-del ipa-old.example.com \
     --force \
     --ignore-topology-disconnect
@@ -148,7 +150,7 @@ sudo ldapsearch -x -H ldap://localhost \
 
 # Check replication errors in 389-DS error log
 sudo grep -iE "repl error|replication.*fail|consumer" \
-    /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors | tail -20
+    /var/log/dirsrv/slapd-EXAMPLE-COM/errors | tail -20
 
 # Lag guidance:
 # < 60s   = healthy target on a stable LAN
@@ -197,6 +199,7 @@ sudo ldapsearch -x -H ldap://localhost \
 sudo ipa-replica-manage -p 'DM_Password' list
 
 # Clean specific RUV
+# ⚠️ Irreversible — confirm the replica-id maps to a genuinely removed replica before cleaning
 sudo ipa-replica-manage -p 'DM_Password' clean-ruv <replica-id>
 
 # Verify RUV cleanup
@@ -226,7 +229,11 @@ sudo ipa-csreplica-manage -p 'DM_Password' re-initialize \
 ipa config-show | grep "IPA CA renewal master"
 sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 
-# Move CRL master to another server
+# 📝 CA renewal master and CRL generation master are DISTINCT roles:
+#    --ca-renewal-master-server moves only the cert-renewal duty;
+#    CRL generation is moved separately via the Dogtag CS.cfg edits below (see Module 12).
+
+# Move the CA renewal master to another server
 ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
 # Enable CRL generation on new master
@@ -307,7 +314,7 @@ ls -dt /var/lib/ipa/backup/ipa-full-* | \
 # Find replication conflict entries
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(nsds5ReplConflict=*)" \
     dn nsds5ReplConflict uid 2>/dev/null
 
@@ -317,18 +324,19 @@ sudo ldapsearch -x -H ldap://localhost \
 # Inspect both conflicting entries
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=jsmith)" uid cn mail
 
 # Delete the conflict (wrong) entry
+# ⚠️ Destructive — confirm which of the two entries is the conflict before deleting
 sudo ldapdelete -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    "nsuniqueid=<uuid>+uid=jsmith,cn=users,cn=accounts,dc=ipa,dc=example,dc=com"
+    "nsuniqueid=<uuid>+uid=jsmith,cn=users,cn=accounts,dc=example,dc=com"
 
 # Find tombstone entries (deleted objects)
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(objectClass=nsTombstone)" \
     dn nsds5ReplConflict 2>/dev/null | head -20
 ```
@@ -357,7 +365,7 @@ sudo ldapsearch -x -H ldap://localhost \
 # -1 = Fatal error
 
 # Fix: restart 389-DS on both replicas
-sudo systemctl restart dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl restart dirsrv@EXAMPLE-COM.service
 
 # Topology disconnected
 ipa topologysuffix-verify domain

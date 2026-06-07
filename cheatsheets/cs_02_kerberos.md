@@ -43,7 +43,7 @@ kinit -p admin                  # proxiable
 
 # Ticket from keytab (no password prompt — for automation)
 kinit -kt /etc/krb5.keytab host/server.example.com
-kinit -kt /etc/service.keytab -k svc@EXAMPLE.COM
+kinit -kt /etc/service.keytab svc@EXAMPLE.COM
 
 # Trace kinit (debug)
 KRB5_TRACE=/dev/stderr kinit admin 2>&1
@@ -117,20 +117,20 @@ ipa-getkeytab \
 # Retrieve host keytab
 ipa-getkeytab \
     -s ipa1.example.com \
-    -p host/client1.example.com \
+    -p host/client01.example.com \
     -k /etc/krb5.keytab
 
 # Retrieve with specific enctype
 ipa-getkeytab \
     -s ipa1.example.com \
-    -p host/client1.example.com \
+    -p host/client01.example.com \
     -k /etc/krb5.keytab \
     -e aes256-cts
 
 # Add new keys without removing old ones
 ipa-getkeytab \
     -s ipa1.example.com \
-    -p host/client1.example.com \
+    -p host/client01.example.com \
     -k /etc/krb5.keytab \
     --append
 
@@ -139,7 +139,7 @@ klist -kt /etc/krb5.keytab
 ktutil -k /etc/krb5.keytab list    # alternative
 
 # Test keytab authentication
-kinit -kt /etc/krb5.keytab host/client1.example.com
+kinit -kt /etc/krb5.keytab host/client01.example.com
 klist
 
 # Set correct permissions on keytab
@@ -275,7 +275,7 @@ ipa otptoken-show <token-id>
 ipa otptoken-find --owner=jsmith
 
 # Disable token
-ipa otptoken-disable <token-id>
+ipa otptoken-mod <token-id> --setattr=ipatokenDisabled=True
 
 # Delete token
 ipa otptoken-del <token-id>
@@ -312,8 +312,10 @@ ipa user-mod jsmith --radius=corp-radius
 # Local kadmin (must be root on KDC host)
 sudo kadmin.local
 
-# Remote kadmin (requires Kerberos auth)
-kadmin -p admin/admin@EXAMPLE.COM
+# 📝 IPA manages the KDC via the LDAP backend — there is no admin/admin principal
+# and remote kadmin is not the IPA path. Use kadmin.local on the IPA server for
+# low-level inspection only; normal changes go through `ipa` commands.
+sudo kadmin.local
 
 # kadmin commands:
 # List principals
@@ -333,11 +335,12 @@ kadmin.local -q "ktadd -k /tmp/service.keytab HTTP/webapp.example.com"
 kadmin.local -q "ktremove -k /tmp/service.keytab HTTP/webapp.example.com all"
 
 # Check database
+# ⚠️ Dumps/stash files expose raw Kerberos secrets — handle as sensitive and delete after use.
+#    Stash manipulation is not an IPA workflow; IPA manages KDC keys via LDAP.
 sudo kdb5_util dump /tmp/kdb-export.txt
 
-# Verify stash file
-sudo kdb5_util stash -P 'MasterPassword' 2>/dev/null || \
-    echo "Stash file exists"
+# 📝 IPA stores the Kerberos master key in LDAP (ipa-kdb plugin) — there is no
+# stash file to create or verify; do not run `kdb5_util stash` on an IPA KDC.
 ```
 
 [↑ Back to TOC](#table-of-contents)

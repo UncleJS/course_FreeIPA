@@ -49,14 +49,15 @@ By the end of this module, you should be able to:
 
 | Term | Meaning |
 |------|---------|
-| **Forest trust** | Trust between two AD forests or between IPA and an AD forest; most common FreeIPA scenario |
-| **Cross-forest trust** | Bi-directional trust spanning entire forests including all child domains |
-| **One-way trust** | AD trusts IPA (AD users log in to IPA-enrolled hosts) |
-| **Two-way trust** | Both sides trust each other; IPA users can authenticate to AD resources too |
-| **Transitive trust** | Trust flows through intermediate domains automatically |
+| **Forest trust** (a.k.a. **cross-forest trust**) | Trust spanning entire forests including all child domains; the most common FreeIPA scenario. "Forest trust" and "cross-forest trust" are two names for the same thing |
 | **External trust** | Trust to a single AD domain, not the full forest |
+| **One-way trust** | Only one side trusts the other. FreeIPA's default is **IPA trusts AD**, so AD users can access IPA resources (log in to IPA-enrolled hosts). IPA users are *not* trusted by AD |
+| **Two-way trust** | Both sides trust each other; IPA users can additionally authenticate to AD resources |
+| **Transitive trust** | Trust flows through intermediate domains automatically |
 
-FreeIPA creates a **one-way forest trust by default**: AD users can log in to Linux hosts enrolled in IPA. Two-way trust (IPA users to AD resources) requires additional AD-side configuration and is rarely needed.
+📝 **Type vs. direction are independent.** "Forest" vs. "external" describes the *scope* of the trust (whole forest vs. one domain); "one-way" vs. "two-way" describes its *direction*. You can have a one-way forest trust or a two-way external trust, etc.
+
+FreeIPA creates a **one-way forest trust by default**: **IPA trusts AD**, so AD users can log in to Linux hosts enrolled in IPA. The reverse (IPA users authenticating to AD resources) requires a two-way trust with additional AD-side configuration and is rarely needed.
 
 ### 1.2 Key Components
 
@@ -157,8 +158,12 @@ graph LR
 When `ipa-adtrust-install` runs, IPA creates:
 
 - A **Samba machine account** in IPA LDAP (`cn=adtrust agents`)
-- An **inter-realm trust key** (`krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM`)
+- **Inter-realm trust keys** — one shared key stored under two cross-realm TGS principals:
+  - `krbtgt/EXAMPLE.COM@AD.EXAMPLE.COM` — presented by **AD users** when they request a cross-realm ticket *into* IPA (the default one-way direction)
+  - `krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM` — used for the **reverse** direction (IPA users into AD), only meaningful with a two-way trust
 - An **ID range** entry mapping AD SIDs to Linux UIDs
+
+📝 Read the principal as `krbtgt/<target-realm>@<source-realm>`. An AD user (source `AD.EXAMPLE.COM`) reaching IPA (target `EXAMPLE.COM`) uses `krbtgt/EXAMPLE.COM@AD.EXAMPLE.COM`, matching the cross-realm TGS-REQ in the §1.3 flow. The `krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM` principal queried in §11.5 is the same trust key viewed from IPA's local kadmin database.
 
 ```mermaid
 erDiagram
@@ -179,6 +184,8 @@ erDiagram
     }
     TRUST_ENTRY ||--o{ ID_RANGE : "has"
 ```
+
+📝 The `ipaBaseRID 0` shown here (and the `BaseID + RID` worked example in §6.2) is a **simplified illustration** to make the arithmetic clear. In a real `ipa-ad-trust` range, `ipaBaseRID` records the AD domain's actual first RID rather than `0`, and SSSD derives the POSIX ID from the user's full **SID** (not from a hand-computed `BaseID + RID`). Treat the numbers as a teaching aid, not exact values.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -317,13 +324,13 @@ ipa dnszone-show _msdcs.example.com 2>/dev/null || \
 ```mermaid
 graph TD
     subgraph DNS Resolution Flow
-        IPA_DNS[IPA DNS<br/>192.168.1.1<br/>example.com]
+        IPA_DNS[IPA DNS<br/>192.168.1.10<br/>example.com]
         AD_DNS[AD DNS<br/>192.168.10.10<br/>ad.example.com]
 
         IPA_DNS -->|"Conditional forwarder<br/>ad.example.com → 192.168.10.10"| AD_DNS
-        AD_DNS -->|"Conditional forwarder<br/>example.com → 192.168.1.1"| IPA_DNS
+        AD_DNS -->|"Conditional forwarder<br/>example.com → 192.168.1.10"| IPA_DNS
 
-        IPA_CLIENT[IPA Client<br/>resolv.conf → 192.168.1.1]
+        IPA_CLIENT[IPA Client<br/>resolv.conf → 192.168.1.10]
         AD_CLIENT[AD Client<br/>DNS → 192.168.10.10]
 
         IPA_CLIENT -->|query| IPA_DNS
@@ -358,7 +365,7 @@ sudo ipa-adtrust-install \
 1. Configures Samba (`smb.conf`) to present IPA as an AD-compatible domain
 2. Starts `winbindd` and `smb` services
 3. Creates `_msdcs.example.com` DNS zone
-4. Adds `cifs/` and `host/` service principals to KDC
+4. Adds the `cifs/<fqdn>` service principal to the KDC (the `host/<fqdn>` principal already exists from server enrollment)
 5. Assigns SIDs to all existing users/groups
 
 ### 5.2 Verify ipa-adtrust-install
@@ -553,9 +560,10 @@ id_provider = ipa
 ipa_domain = example.com
 ipa_server = _srv_
 
-# The AD sub-domain is discovered automatically:
-# [domain/example.com/ad.example.com]
-# id_provider = ad   (implicit)
+# The AD sub-domain is discovered and handled internally by the
+# `ipa` provider above. SSSD does NOT write a separate
+# [domain/example.com/ad.example.com] section to sssd.conf — do
+# not expect to find one. AD subdomains are managed in the cache.
 ```
 
 ### 7.2 User Lookup
@@ -571,9 +579,11 @@ getent passwd aduser1
 # Look up group
 getent group 'domain users@ad.example.com'
 
-# Enumerate all AD users (use with caution in large AD environments)
-getent passwd | grep '@ad.example.com'
+# Resolve a specific AD user by name (works regardless of enumeration)
+getent passwd aduser1@ad.example.com
 ```
+
+📝 SSSD **enumeration is disabled by default** (`enumerate = false`), so a bare `getent passwd` will *not* list AD users — it returns nothing for the trusted domain. Always resolve AD identities by explicit name (`getent passwd aduser1@ad.example.com`). Enabling enumeration against a large AD is strongly discouraged for performance reasons.
 
 ### 7.3 User Override
 
@@ -587,9 +597,13 @@ ipa idoverrideuser-add 'Default Trust View' aduser1@ad.example.com \
     --shell=/bin/bash \
     --uid=1001105
 
-# Add SSH public key override
+# Add an SSH public-key override for the AD user
+ipa idoverrideuser-mod 'Default Trust View' aduser1@ad.example.com \
+    --sshpubkey="ssh-ed25519 AAAA..."
+
+# (Optional) Add a certificate override — for cert-based auth, not SSH keys
 ipa idoverrideuser-add-cert 'Default Trust View' aduser1@ad.example.com \
-    --certificate="$(cat aduser1_pubkey.pem)"
+    --certificate="$(cat aduser1_cert.pem)"
 
 # Verify
 ipa idoverrideuser-show 'Default Trust View' aduser1@ad.example.com
@@ -633,14 +647,30 @@ ipa idoverrideuser-add DMZView aduser1@ad.example.com \
 
 ### 7.5 Auto-Private Groups
 
-```bash
-# By default IPA creates private groups for AD users at login
-# Control this behavior:
-ipa config-mod --user-default-group=''   # Remove default group assignment
+Whether AD users get an auto-generated private group is controlled by SSSD's
+**`auto_private_groups`** option, *not* by `ipa config-mod`. Set it per-subdomain
+in `/etc/sssd/sssd.conf`:
 
-# Verify auto-private group creation
-ipa config-show | grep "Default user group"
+```ini
+# In the [domain/example.com] section (use subdomain_inherit to push it to
+# discovered AD subdomains, since they have no section of their own):
+[domain/example.com]
+subdomain_inherit = auto_private_groups
+auto_private_groups = true     # true | false | hybrid
+#   true   — always create a private group from the user's UID
+#   false  — require a real primary GID (e.g. from POSIX attrs)
+#   hybrid — create a private group only when UID == primary GID
 ```
+
+```bash
+# Apply the change
+sudo systemctl restart sssd
+sudo sss_cache -E
+```
+
+📝 `ipa config-mod --user-default-group` only sets the fallback primary group for
+**IPA-native** users created via `ipa user-add`; it does not govern private-group
+behavior for trusted AD users.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -888,8 +918,8 @@ dig +short SRV _ldap._tcp.dc._msdcs.ad.example.com
 # If empty: fix DNS forwarder zone
 
 # Verify IPA SRV records are visible from AD side
-dig +short SRV _ldap._tcp.example.com @192.168.1.1
-dig +short SRV _kerberos._tcp.example.com @192.168.1.1
+dig +short SRV _ldap._tcp.example.com @192.168.1.10
+dig +short SRV _kerberos._tcp.example.com @192.168.1.10
 ```
 
 ### 11.3 Samba/Winbind Troubleshooting
@@ -1018,7 +1048,7 @@ KRB5_TRACE=/dev/stderr kinit aduser1@AD.EXAMPLE.COM
 
 ## 12. Lab — Build and Verify an AD Trust
 
-> **Environment:** One IPA master (`ipa1.example.com`), one AD DC (`dc1.ad.example.com`), one IPA client (`client1.example.com`).
+> **Environment:** One IPA master (`ipa1.example.com`), one AD DC (`dc1.ad.example.com`), one IPA client (`client01.example.com`).
 
 ### Lab 12.1 — Install AD Trust Packages
 
@@ -1051,6 +1081,11 @@ sudo ipa-adtrust-install \
     --netbios-name=IPA \
     --add-sids \
     --admin-password='AdminPassword123!'
+
+# 📝 On a single-master lab, --add-agents is unnecessary (this is the only
+# server). Add --add-agents (as shown in §5.1) when you have replicas and
+# want every IPA master registered as a trust agent able to serve AD users.
+# It can also be applied later by re-running ipa-adtrust-install --add-agents.
 
 # Verify services
 sudo systemctl status smb winbind
@@ -1117,12 +1152,12 @@ ipa hbacrule-add allow_ad_ssh \
     --servicecat=all
 ipa hbacrule-add-user allow_ad_ssh --groups=ipa_ad_users
 ipa hbacrule-add-host allow_ad_ssh \
-    --hosts=client1.example.com
+    --hosts=client01.example.com
 
 # Test HBAC
 ipa hbactest \
     --user=testaduser@ad.example.com \
-    --host=client1.example.com \
+    --host=client01.example.com \
     --service=sshd
 ```
 
@@ -1130,7 +1165,10 @@ ipa hbactest \
 
 ```bash
 # From an external host, SSH as AD user
-ssh testaduser@ad.example.com@client1.example.com
+# 📝 Double-@ form: everything before the LAST @ is the login (the AD user
+# principal "testaduser@ad.example.com"); the part after the last @ is the
+# target host (client01.example.com).
+ssh testaduser@ad.example.com@client01.example.com
 
 # Verify Kerberos ticket
 klist

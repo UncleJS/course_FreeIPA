@@ -111,8 +111,8 @@ ipa dnsrecord-show example.com server2
 # Find all records in a zone
 ipa dnsrecord-find example.com
 ipa dnsrecord-find example.com --name=server2
-# Note: dnsrecord-find has no --type filter; use typed option to narrow results:
-ipa dnsrecord-find example.com --a-rec=""
+# Note: dnsrecord-find has no record-type filter — grep the output to narrow by type:
+ipa dnsrecord-find example.com | grep -B2 'A record'
 
 # Modify a record
 ipa dnsrecord-mod example.com server2 \
@@ -213,11 +213,8 @@ ipa dnszone-mod example.com \
 # Check DNSSEC status
 ipa dnszone-show example.com | grep -i "DNSSEC\|signing"
 
-# List DNSSEC keys for a zone
-ipa dnskey-find example.com
-
-# Show DNSSEC key details
-ipa dnskey-show example.com <key-tag>
+# List DNSSEC keys for a zone (and key details) via OpenDNSSEC
+sudo ods-enforcer key list --zone=example.com --verbose
 
 # Check OpenDNSSEC services
 sudo systemctl status ods-enforcerd ods-signerd
@@ -248,13 +245,15 @@ sudo ods-enforcer key list --zone=example.com --verbose
 ipa dnszone-show example.com --all
 dig +dnssec example.com SOA @ipa1.example.com
 
-# Trigger a new key set and verify a second key appears
-ipa dnszone-mod example.com --dnssec=false
-ipa dnszone-mod example.com --dnssec=true
-ipa dnskey-find example.com
+# Trigger the KSK rollover and verify a second key appears
+# ⚠️ Do NOT toggle --dnssec=false/true — that unsigns the zone and causes a
+#    validation outage; it is not a rollover (see Module 06 §7.5).
+sudo ods-enforcer key rollover --zone example.com --keytype KSK
+sudo ods-enforcer key list --zone=example.com --verbose
 
-# Capture the DS record that must be published in the parent zone
-ipa dnszone-show example.com --all | grep -i DS
+# Capture the new DS record that must be published in the parent zone
+# (keep the OLD DS published too, for the full overlap window)
+sudo ods-enforcer key export --zone example.com --keytype KSK --ds
 
 # Validate from outside IPA after the parent publishes the new DS
 dig +dnssec example.com SOA @8.8.8.8
@@ -393,9 +392,9 @@ sudo journalctl -u named --since "today" | tail -30
 
 # DNS not resolving IPA records
 # Check bind-dyndb-ldap can reach 389-DS
-sudo systemctl status dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl status dirsrv@EXAMPLE-COM.service
 sudo -u named ldapsearch -x -H ldap://localhost \
-    -b "cn=dns,dc=ipa,dc=example,dc=com" "(idnsName=*)" idnsName | head -10
+    -b "cn=dns,dc=example,dc=com" "(idnsName=*)" idnsName | head -10
 
 # SERVFAIL on zone
 sudo rndc reload example.com

@@ -176,7 +176,7 @@ openssl s_client -connect ipa1.example.com:8443 </dev/null 2>&1 | \
 |------|----------|-----------|
 | RSA minimum key size | 2048 bits | 3072 bits |
 | Hash in signatures | SHA-256+ | SHA-256+ (SHA-1 forbidden everywhere) |
-| Kerberos enctypes | AES-128, AES-256 | AES-256 only (AES-128 allowed in FIPS 140-3) |
+| Kerberos enctypes | AES-128, AES-256 | AES-128 and AES-256 (both FIPS-approved) |
 | HMAC | HMAC-MD5 allowed in Kerberos internal | Forbidden |
 | PBKDF | PBKDF2-SHA256 | PBKDF2-SHA256 (minimum) |
 | TLS | 1.2+ | 1.2+ (TLS 1.0/1.1 forbidden) |
@@ -280,6 +280,11 @@ sudo tee -a /etc/krb5.conf.d/ipa-hardened-enctypes.conf << 'EOF'
  allow_weak_crypto    = false
 EOF
 
+# 📝 Note: the `sha1` in `aes256-cts-hmac-sha1-96` is the HMAC used *inside* the
+# enctype (RFC 3962), not a banned SHA-1 signature — it remains acceptable.
+# `aes256-cts-hmac-sha384-192` (RFC 8009) is the stronger, modern choice and
+# should be preferred where every KDC, replica, and client supports it.
+
 # Verify existing service keys use AES-256
 sudo kadmin.local -q "getprinc host/ipa1.example.com" | grep "Key:"
 ```
@@ -296,14 +301,16 @@ ipa krbtpolicy-mod \
     --maxrenew=604800
 # maxlife=36000s (10 hours), maxrenew=604800s (7 days)
 
-# Per-user override (e.g., service accounts get shorter tickets)
-ipa user-mod svc_batch \
-    --krbmaxpwdlife=0 \
-    --krbminpwdlife=0
-
+# Per-user ticket-lifetime override (e.g., service accounts get shorter tickets)
 ipa krbtpolicy-mod --user=svc_batch \
     --maxlife=3600 \
     --maxrenew=3600
+
+# 📝 To control *password* lifetime for service accounts, use a group password
+# policy rather than user-mod (krbmaxpwdlife/krbminpwdlife are not user-mod options):
+#   ipa group-add svc_accounts
+#   ipa group-add-member svc_accounts --users=svc_batch
+#   ipa pwpolicy-add svc_accounts --priority=10 --maxlife=0 --minlife=0
 ```
 
 ### 4.3 Account Lockout Policy
@@ -322,22 +329,23 @@ ipa pwpolicy-mod global_policy \
 # Unlock a locked account
 ipa user-unlock jsmith
 
-# Check if an account is locked
-ipa user-show jsmith | grep "Account disabled\|Locked"
+# Check if an account is locked (lockout state is shown by user-status, not user-show)
+ipa user-status jsmith
 ```
 
 ### 4.4 Kerberos Anonymous PKINIT
 
 ```bash
 # Anonymous PKINIT allows unauthenticated clients to obtain an anonymous TGT
-# for service discovery. Disable it if not required.
-# The correct method is to disable the anonymous PKINIT flag in the KDC config:
+# for service discovery. Disable it ONLY if not required.
 
-# Check if anonymous PKINIT is enabled
-sudo grep -r "pkinit_allow_upn\|no_auth_data_required" /etc/krb5.conf /etc/krb5.conf.d/ 2>/dev/null
+# ⚠️ WARNING: IPA itself uses anonymous PKINIT to establish FAST armor for
+# OTP/2FA logins and several Web UI authentication flows. Disabling it can break
+# OTP authentication, the password-change Web UI, and other armored flows.
+# Only disable this if you have confirmed none of those features are in use.
 
-# Disable anonymous PKINIT by adding 'no_anonymous' to the IPA KDC config:
-sudo grep -r "pkinit" /var/kerberos/krb5kdc/kdc.conf
+# Check whether the anonymous PKINIT principal exists / is usable:
+sudo kadmin.local -q "getprinc WELLKNOWN/ANONYMOUS@EXAMPLE.COM" 2>/dev/null
 
 # Disable via kadmin — flag the WELLKNOWN/ANONYMOUS principal as requiring pre-auth
 # (this prevents unauthenticated AS-REQ from obtaining an anonymous TGT):
@@ -399,7 +407,7 @@ EOF
 
 # Verify
 sudo ldapsearch -x -H ldap://localhost \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=admin)" uid 2>&1 | head -5
 # Should return: "Anonymous access not allowed"
 ```
@@ -426,8 +434,8 @@ EOF
 
 # Verify LDAPS works
 ldapsearch -x -H ldaps://ipa1.example.com \
-    -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
-    -W -b "dc=ipa,dc=example,dc=com" \
+    -D "uid=admin,cn=users,cn=accounts,dc=example,dc=com" \
+    -W -b "dc=example,dc=com" \
     "(uid=admin)" uid
 ```
 
@@ -450,7 +458,7 @@ sslVersionMin: TLS1.2
 EOF
 
 # Restart 389-DS to apply
-sudo systemctl restart dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl restart dirsrv@EXAMPLE-COM.service
 ```
 
 ### 5.4 LDAP ACIs Review
@@ -459,7 +467,7 @@ sudo systemctl restart dirsrv@IPA-EXAMPLE-COM.service
 # List all ACIs in the DIT
 sudo ldapsearch -x -H ldaps://ipa1.example.com \
     -D "cn=Directory Manager" -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(aci=*)" aci | grep "^aci:"
 
 # Key ACIs to review:
@@ -478,20 +486,13 @@ ipa permission-find | grep -i "read\|write" | head -20
 # The Directory Manager (DM) password is set at install time
 # It should be rotated periodically
 
-# Change DM password
+# Change DM password — this is the supported method (updates the LDAP rootdn
+# password directly). Run it on each IPA server, since the DM password is local
+# to each instance and is not replicated.
 sudo ldappasswd -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
     -s 'NewDMPassword456!' \
     "cn=Directory Manager"
-
-# Update IPA's stored DM password
-sudo python3 -c "
-import os, pwd
-from ipaserver.install.dsinstance import DsInstance
-ds = DsInstance()
-ds.change_dm_password('NewDMPassword456!')
-"
-# Or use ipa-ldap-updater for safe password rotation
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -517,20 +518,18 @@ sudo grep -r "keySize\|signingAlg" \
 # View default certificate lifetime
 ipa config-show | grep "Certificate"
 
-# Reduce service certificate validity
-# Edit Dogtag profile: /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg
-sudo grep "policyset.serverCertSet.2.default.params.range" \
-    /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg
+# Reduce service certificate validity using the SUPPORTED certprofile workflow.
+# Do NOT hand-edit the on-disk Dogtag .cfg files — export, edit, re-import:
 
-# Change validity from 2 years to 1 year (365 days)
-# Always take a backup before modifying Dogtag profile files:
-sudo cp /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg \
-    /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg.bak
-sudo sed -i \
-    's/policyset.serverCertSet.2.default.params.range=730/policyset.serverCertSet.2.default.params.range=365/' \
-    /etc/pki/pki-tomcat/ca/profiles/ca/caIPAserviceCert.cfg
+# 1. Export the current profile configuration
+ipa certprofile-show caIPAserviceCert --out=/tmp/profile.cfg
 
-sudo systemctl restart pki-tomcatd@pki-tomcat.service
+# 2. Edit the validity range (days). Change validity from 2 years to 1 year:
+#    policyset.serverCertSet.2.default.params.range=730  →  =365
+sudo "${EDITOR:-vi}" /tmp/profile.cfg
+
+# 3. Re-import the modified profile
+ipa certprofile-mod caIPAserviceCert --file=/tmp/profile.cfg
 ```
 
 ### 6.3 OCSP Enforcement
@@ -767,6 +766,8 @@ GSSAPIKeyExchange yes
 
 # Disable password auth where feasible
 PasswordAuthentication no
+# Kept ON intentionally: IPA OTP/2FA logins use keyboard-interactive (PAM).
+# (Modern OpenSSH names this directive KbdInteractiveAuthentication.)
 ChallengeResponseAuthentication yes
 
 # Disable root login
@@ -897,11 +898,11 @@ replace: nsslapd-auditlog-logging-enabled
 nsslapd-auditlog-logging-enabled: on
 -
 replace: nsslapd-auditlog
-nsslapd-auditlog: /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/audit
+nsslapd-auditlog: /var/log/dirsrv/slapd-EXAMPLE-COM/audit
 EOF
 
 # Verify audit log is writing
-sudo tail -20 /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/audit
+sudo tail -20 /var/log/dirsrv/slapd-EXAMPLE-COM/audit
 ```
 
 ### 10.3 Dogtag (CA) Audit Logging
@@ -986,8 +987,9 @@ sudo sed -i 's/SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
 ### 11.2 SELinux IPA Policy
 
 ```bash
-# IPA ships its own SELinux policy module
-rpm -q ipa-server-selinux 2>/dev/null || echo "Included in ipa-server"
+# IPA's SELinux policy ships in the ipa-selinux package, layered on the base
+# selinux-policy. Confirm both are present:
+rpm -q ipa-selinux selinux-policy
 
 # Check for SELinux denials related to IPA
 sudo ausearch -m avc -ts recent | grep -E "ipa|dirsrv|httpd|krb5kdc|named"
@@ -1012,6 +1014,10 @@ sudo tee /etc/sysctl.d/ipa-hardening.conf << 'EOF'
 # Restrict core dumps
 fs.suid_dumpable = 0
 kernel.core_pattern = |/bin/false
+# 📝 Note: piping core_pattern to /bin/false discards ALL coredumps, including
+# the ones used for troubleshooting in Module 14 (e.g., crashed dirsrv/pki-tomcatd).
+# When debugging a crash, temporarily revert this (e.g. set core_pattern back to
+# the systemd-coredump handler) and re-apply the hardening afterwards.
 
 # Network hardening
 net.ipv4.conf.all.rp_filter = 1
@@ -1150,7 +1156,7 @@ EOF
 
 # Verify anonymous is blocked
 ldapsearch -x -H ldap://localhost \
-    -b "dc=ipa,dc=example,dc=com" "(uid=admin)" uid 2>&1
+    -b "dc=example,dc=com" "(uid=admin)" uid 2>&1
 # Expected: "Anonymous access not allowed"
 ```
 

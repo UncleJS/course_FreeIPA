@@ -75,8 +75,8 @@ graph LR
         B1 -->|replay attack possible| C1[❌ Vulnerable]
     end
     subgraph "Kerberos (safe)"
-        A2[Client] -->|encrypted ticket\nno password| B2[Service]
-        B2 -->|time-limited\nnon-replayable| C2[✅ Secure]
+        A2[Client] -->|"encrypted ticket<br/>no password"| B2[Service]
+        B2 -->|"time-limited<br/>non-replayable"| C2[✅ Secure]
     end
 ```
 
@@ -101,19 +101,20 @@ Key Kerberos properties:
 
 ```mermaid
 graph TD
-    A[kinit: enter password once] --> B[TGT\nTicket-Granting Ticket\nproof of identity\nvalid 10 hours]
-    B --> C[TGS exchange\nno password needed]
-    C --> D1[Service Ticket\nfor SSH/server1]
-    C --> D2[Service Ticket\nfor HTTP/webapp]
-    C --> D3[Service Ticket\nfor ldap/ipa1]
+    A[kinit: enter password once] --> B["TGT<br/>Ticket-Granting Ticket<br/>proof of identity<br/>valid 10 hours"]
+    B --> C["TGS exchange<br/>no password needed"]
+    C --> D1["Service Ticket<br/>for SSH/server1"]
+    C --> D2["Service Ticket<br/>for HTTP/webapp"]
+    C --> D3["Service Ticket<br/>for ldap/ipa1"]
     D1 --> E1[SSH login to server1]
     D2 --> E2[Access web app]
     D3 --> E3[LDAP query]
 ```
 
 Tickets are stored in a **credential cache** on the client:
-- Default location: `/tmp/krb5cc_<uid>` (file-based)
-- Systemd-managed: `KEYRING:persistent:<uid>` (in-kernel, preferred)
+- RHEL 10 default: `KCM:` — the kernel keyring control manager (sssd-kcm), preferred
+- Alternative: `KEYRING:persistent:<uid>` (in-kernel keyring)
+- File-based: `/tmp/krb5cc_<uid>` (legacy default)
 - View with: `klist`
 
 [↑ Back to TOC](#table-of-contents)
@@ -130,16 +131,16 @@ sequenceDiagram
     participant AS as KDC Authentication Service
     participant DB as 389-DS (principal database)
 
-    C->>AS: AS-REQ\n{ client: jdoe@EXAMPLE.COM,\n  server: krbtgt/EXAMPLE.COM,\n  timestamp: now (encrypted with user key),\n  preauthentication data }
+    C->>AS: AS-REQ<br/> { client: jdoe@EXAMPLE.COM,<br/>  server: krbtgt/EXAMPLE.COM,<br/>  timestamp: now (encrypted with user key),<br/>  preauthentication data }
 
-    AS->>DB: Lookup jdoe principal\nretrieve long-term key
+    AS->>DB: Lookup jdoe principal<br/>retrieve long-term key
     DB-->>AS: jdoe's key (from krbPrincipalKey)
 
-    Note over AS: Decrypt preauthentication\nVerify timestamp (clock skew < 5 min)
+    Note over AS: Decrypt preauthentication<br/>Verify timestamp (clock skew < 5 min)
 
-    AS-->>C: AS-REP\n{ TGT encrypted with KDC's secret key,\n  Session key encrypted with user's key }
+    AS-->>C: AS-REP<br/> { TGT encrypted with the krbtgt service key,<br/>  Session key encrypted with user's key }
 
-    Note over C: Decrypt session key\nwith user password.\nStore TGT + session key in ccache.
+    Note over C: Decrypt session key with the user's<br/>long-term key (derived from the password).<br/>Store TGT + session key in ccache.
 ```
 
 **What is in the TGT?**
@@ -147,7 +148,7 @@ sequenceDiagram
 - Session key (shared between client and TGS)
 - Validity period (default: 10 hours, renewable for 7 days)
 - Client's IP address (optional, configurable)
-- Encrypted with the **KDC's** secret key (client cannot read it)
+- Encrypted with the **krbtgt service key** (client cannot read it)
 
 ### 2.2 TGS-REQ / TGS-REP — Getting a Service Ticket
 
@@ -157,18 +158,18 @@ sequenceDiagram
     participant TGS as KDC Ticket Granting Service
     participant DB as 389-DS
 
-    Note over C: Has TGT from AS-REP\nWants to access SSH/server1.example.com
+    Note over C: Has TGT from AS-REP<br/>Wants to access SSH/server1.example.com
 
-    C->>TGS: TGS-REQ\n{ TGT (opaque),\n  authenticator (encrypted with session key),\n  requested service: host/server1.example.com }
+    C->>TGS: TGS-REQ<br/> { TGT (opaque),<br/>  authenticator (encrypted with session key),<br/>  requested service: host/server1.example.com }
 
-    TGS->>TGS: Decrypt TGT with KDC key\nExtract session key\nDecrypt authenticator\nVerify timestamp
+    TGS->>TGS: Decrypt TGT with KDC key<br/>Extract session key<br/>Decrypt authenticator<br/>Verify timestamp
 
-    TGS->>DB: Lookup host/server1 principal\nget service long-term key
+    TGS->>DB: Lookup host/server1 principal<br/>get service long-term key
     DB-->>TGS: service key
 
-    TGS-->>C: TGS-REP\n{ service ticket (encrypted with service key),\n  new session key (encrypted with old session key) }
+    TGS-->>C: TGS-REP<br/> { service ticket (encrypted with service key),<br/>  new session key (encrypted with old session key) }
 
-    Note over C: Store service ticket.\nNo password needed.
+    Note over C: Store service ticket.<br/>No password needed.
 ```
 
 ### 2.3 AP-REQ — Using the Service Ticket
@@ -178,17 +179,17 @@ sequenceDiagram
     participant C as Client (SSH)
     participant SVC as Application Server (sshd)
 
-    C->>SVC: AP-REQ\n{ service ticket (opaque to client),\n  authenticator (encrypted with service session key) }
+    C->>SVC: AP-REQ<br/> { service ticket (opaque to client),<br/>  authenticator (encrypted with service session key) }
 
-    SVC->>SVC: Decrypt service ticket\nwith own long-term key (from keytab)\nExtract service session key\nDecrypt authenticator\nVerify client identity + timestamp
+    SVC->>SVC: Decrypt service ticket<br/>with own long-term key (from keytab)<br/>Extract service session key<br/>Decrypt authenticator<br/>Verify client identity + timestamp
 
     Note over SVC: Optional: mutual auth
 
-    SVC-->>C: AP-REP\n{ server timestamp encrypted\n  with service session key }
+    SVC-->>C: AP-REP<br/> { server timestamp encrypted<br/>  with service session key }
 
-    Note over C: Verify server is legitimate\n(mutual authentication)
+    Note over C: Verify server is legitimate<br/>(mutual authentication)
 
-    C->>SVC: Establish authenticated session\n(Kerberos GSS-API layer)
+    C->>SVC: Establish authenticated session<br/>(Kerberos GSS-API layer)
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -234,10 +235,10 @@ HTTP/ipa1.example.com@EXAMPLE.COM
 
 ```mermaid
 graph TD
-    A[Principal namespace\nEXAMPLE.COM] --> B[User principals\njdoe@EXAMPLE.COM\nadmin@EXAMPLE.COM]
-    A --> C[Host principals\nhost/server1.example.com\nhost/server2.example.com]
-    A --> D[Service principals\nHTTP/ipa1.example.com\nldap/ipa1.example.com\nnfs/storage.example.com\ncifs/fileserver.example.com\nDNS/ipa1.example.com]
-    A --> E[IPA internal\nkrbtgt/EXAMPLE.COM\nkadmin/admin\nkadmin/changepw]
+    A["Principal namespace<br/>EXAMPLE.COM"] --> B["User principals<br/>jdoe@EXAMPLE.COM<br/>admin@EXAMPLE.COM"]
+    A --> C["Host principals<br/>host/server1.example.com<br/>host/server2.example.com"]
+    A --> D["Service principals<br/>HTTP/ipa1.example.com<br/>ldap/ipa1.example.com<br/>nfs/storage.example.com<br/>cifs/fileserver.example.com<br/>DNS/ipa1.example.com"]
+    A --> E["IPA internal<br/>krbtgt/EXAMPLE.COM<br/>kadmin/admin<br/>kadmin/changepw"]
 ```
 
 ```bash
@@ -271,11 +272,11 @@ a human entering a password.
 
 ```mermaid
 graph LR
-    A[Keytab file\n/etc/krb5.keytab] --> B[kinit -k host/server1.example.com]
-    B --> C[KDC verifies key\nmatches stored key]
-    C --> D[TGT issued\nno password needed]
-    D --> E[Service ticket for ldap/ipa\nno password needed]
-    E --> F[SSSD can bind to LDAP\nwithout password]
+    A["Keytab file<br/>/etc/krb5.keytab"] --> B[kinit -k host/server1.example.com]
+    B --> C["KDC verifies key<br/>matches stored key"]
+    C --> D["TGT issued<br/>no password needed"]
+    D --> E["Service ticket for ldap/ipa<br/>no password needed"]
+    E --> F["SSSD can bind to LDAP<br/>without password"]
 ```
 
 **Key properties:**
@@ -312,22 +313,28 @@ klist -k /etc/krb5.keytab -e    # show encryption types
 kinit -k -t /etc/krb5.keytab host/server1.example.com
 klist   # verify ticket obtained
 
-# Rotate a service key: force new key generation then re-retrieve the keytab
-# Step 1 — generate a new key version (kvno bumped) and immediately re-retrieve
+# Rotate a service key: just run ipa-getkeytab WITHOUT -r.
+# Calling ipa-getkeytab without -r ALWAYS generates a brand-new key and writes it
+# to the keytab — that generation IS the rotation, and it bumps the kvno.
+ipa-getkeytab -s ipa1.example.com \
+  -p HTTP/webapp.example.com \
+  -k /etc/httpd/conf/http.keytab   # new key generated, kvno incremented
+
+# To RETRIEVE the existing key without rotating (e.g. distribute the same keytab
+# to another host), add -r — this reads the current key and does NOT change kvno:
 ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab \
-  -g                              # -g forces a new key to be generated
-# Note: ipa service-mod without arguments does NOT rotate the key;
-# use ipa-getkeytab -g to generate a new key (invalidates old keytab copies!)
+  -r                               # retrieve existing key, no rotation
 
 # Check current key version number
 kvno HTTP/webapp.example.com
 ```
 
-> ⚠️ After rotating a key (`ipa-getkeytab` with new key generation), all copies of
-> the old keytab for that principal become invalid immediately. Update all hosts that
-> use the keytab before rotating.
+> ⚠️ Rotating a key (running `ipa-getkeytab` without `-r`) generates a new key and
+> invalidates all copies of the old keytab for that principal immediately. If you need
+> the same key on multiple hosts, retrieve it with `-r` instead of regenerating, and
+> update every host that uses the keytab before you next rotate.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -343,14 +350,14 @@ FreeIPA supports TOTP (Time-based OTP, e.g. Google Authenticator) and HOTP
 ```mermaid
 flowchart TD
     A[User runs kinit jdoe] --> B[KDC sends OTP challenge]
-    B --> C[User enters:\nPassword + OTP token]
-    C --> D{IPA OTP daemon\nipa-otpd}
-    D -->|TOTP local| E[Validate HOTP/TOTP\nagainst stored secret]
-    D -->|RADIUS proxy| F[Forward to RADIUS server\ne.g. FreeRADIUS, DUO]
+    B --> C["User enters:<br/>Password + OTP token"]
+    C --> D{"IPA OTP daemon<br/>ipa-otpd"}
+    D -->|TOTP local| E["Validate HOTP/TOTP<br/>against stored secret"]
+    D -->|RADIUS proxy| F["Forward to RADIUS server<br/>e.g. FreeRADIUS, DUO"]
     E --> G{Valid?}
     F --> G
     G -->|Yes| H[KDC issues TGT]
-    G -->|No| I[Authentication failed\nretry]
+    G -->|No| I["Authentication failed<br/>retry"]
 ```
 
 When 2FA is enabled for a user, the `kinit` password prompt accepts
@@ -409,7 +416,7 @@ sequenceDiagram
 
     U->>KDC: AS-REQ + password+OTP
     KDC->>OTP: Validate OTP for jdoe
-    OTP->>RAD: RADIUS Access-Request\n(username, OTP code)
+    OTP->>RAD: RADIUS Access-Request<br/>(username, OTP code)
     RAD-->>OTP: RADIUS Access-Accept / Reject
     OTP-->>KDC: Valid / Invalid
     KDC-->>U: AS-REP (TGT) / Error
@@ -420,6 +427,11 @@ sequenceDiagram
 ipa radiusproxy-add duo-proxy \
   --server=duo.radius.example.com:1812 \
   --secret='radius-shared-secret'
+#
+# ⚠️ Passing --secret on the command line leaves the shared secret in your shell
+# history (~/.bash_history) and process list. Omit --secret to be prompted for it
+# interactively instead:
+#   ipa radiusproxy-add duo-proxy --server=duo.radius.example.com:1812
 
 # Assign a user to authenticate via RADIUS
 ipa user-mod jdoe \
@@ -447,18 +459,18 @@ sequenceDiagram
     participant KDC as FreeIPA KDC
     participant CA as Dogtag CA
 
-    Note over U: Has user certificate\nissued by IPA CA
+    Note over U: Has user certificate<br/>issued by IPA CA
 
-    U->>KDC: AS-REQ with PKINIT padata\n{ signed with user's private key,\n  user's X.509 certificate }
+    U->>KDC: AS-REQ with PKINIT padata<br/> { signed with user's private key,<br/>  user's X.509 certificate }
 
-    KDC->>CA: Verify certificate chain\n(is cert from trusted IPA CA?)
+    KDC->>CA: Verify certificate chain<br/>(is cert from trusted IPA CA?)
     CA-->>KDC: Certificate valid
 
-    KDC->>KDC: Map certificate to\nKerberos principal\n(via SAN or mapping rule)
+    KDC->>KDC: Map certificate to<br/>Kerberos principal<br/>(via SAN or mapping rule)
 
-    KDC-->>U: AS-REP\n{ TGT (standard Kerberos ticket) }
+    KDC-->>U: AS-REP<br/>{ TGT (standard Kerberos ticket) }
 
-    Note over U: Full Kerberos SSO\nno password used
+    Note over U: Full Kerberos SSO<br/>no password used
 ```
 
 ```bash
@@ -500,6 +512,12 @@ are supported for Kerberos:
 | `des-cbc-md5` | ❌ Removed | Disabled, insecure |
 | `des3-cbc-sha1` | ❌ Removed | Disabled in DEFAULT policy |
 
+> 📝 The `sha1` in `aes256-cts-hmac-sha1-96` refers to SHA-1 used **only as an HMAC**
+> (a keyed integrity check) inside the enctype — this is cryptographically distinct
+> from SHA-1 *digital signatures*, which are banned in the DEFAULT crypto policy. The
+> HMAC-SHA1 enctypes remain permitted and FIPS-approved. Even so, `aes256-cts-hmac-sha384-192`
+> (RFC 8009, SHA-2) is the stronger, preferred enctype and is the modern default.
+
 ```bash
 # Check current supported encryption types
 ipa config-show | grep "Supported enctypes"
@@ -533,11 +551,11 @@ klist -k -e /etc/krb5.keytab
 
 ```mermaid
 graph TD
-    A[Global Password Policy\npriority: lowest\napplies to all users] -->|overridden by higher priority| B[Group Policy\npriority: 1-∞\nlower number wins]
-    B --> C[admins group policy\npriority: 1\nstrongest requirements]
-    B --> D[contractors group policy\npriority: 50\nshorter expiry]
-    B --> E[developers group policy\npriority: 10]
-    A --> F[Users not in any\npriority group\nuse global policy]
+    A["Global Password Policy<br/>priority: lowest<br/>applies to all users"] -->|overridden by higher priority| B["Group Policy<br/>priority: 1-∞<br/>lower number wins"]
+    B --> C["admins group policy<br/>priority: 1<br/>strongest requirements"]
+    B --> D["contractors group policy<br/>priority: 50<br/>shorter expiry"]
+    B --> E["developers group policy<br/>priority: 10"]
+    A --> F["Users not in any<br/>priority group<br/>use global policy"]
 ```
 
 ```bash
@@ -568,7 +586,7 @@ sequenceDiagram
     KDC-->>U: Authentication failed
 
     U->>KDC: kinit (wrong password) attempt 5 (maxfail)
-    KDC->>LDAP: krbLoginFailedCount=5\nSet krbLastFailedAuth = now
+    KDC->>LDAP: krbLoginFailedCount=5<br/>Set krbLastFailedAuth = now
     KDC-->>U: Authentication failed
 
     U->>KDC: kinit attempt 6 (locked out)
@@ -599,14 +617,14 @@ ldapsearch -Y GSSAPI \
 ```mermaid
 flowchart TD
     A[kinit invoked] --> B{Authentication method?}
-    B -->|password| C[kinit username\nEnter password at prompt]
+    B -->|password| C["kinit username<br/>Enter password at prompt"]
     B -->|keytab| D[kinit -k -t /path/to/keytab principal]
     B -->|PKINIT cert| E[kinit -X X509_user_identity=PKCS11:... username]
-    B -->|OTP 2FA| F[kinit username\nEnter password+OTP at prompt]
-    B -->|anonymous| G[kinit -n @EXAMPLE.COM\nAnonymous PKINIT]
+    B -->|OTP 2FA| F["kinit username<br/>Enter password+OTP at prompt"]
+    B -->|anonymous| G["kinit -n @EXAMPLE.COM<br/>Anonymous PKINIT"]
 
-    C --> H{OTP required\nfor this user?}
-    H -->|Yes| I[Append OTP code to password\nPassword123456]
+    C --> H{"OTP required<br/>for this user?"}
+    H -->|Yes| I["Append OTP code to password<br/>Password123456"]
     H -->|No| J[Password only]
     I --> K[KDC validates]
     J --> K
@@ -616,11 +634,11 @@ flowchart TD
     G --> K
 
     K --> L{Success?}
-    L -->|Yes| M[TGT stored in ccache\nklist shows ticket]
+    L -->|Yes| M["TGT stored in ccache<br/>klist shows ticket"]
     L -->|Clock skew| N[Fix NTP: chronyc makestep]
-    L -->|Wrong password| O[Check caps lock\ncheck account not locked]
-    L -->|Principal unknown| P[ipa user-find username\ncheck principal exists]
-    L -->|KDC unreachable| Q[Check DNS SRV records\nCheck firewall port 88]
+    L -->|Wrong password| O["Check caps lock<br/>check account not locked"]
+    L -->|Principal unknown| P["ipa user-find username<br/>check principal exists"]
+    L -->|KDC unreachable| Q["Check DNS SRV records<br/>Check firewall port 88"]
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -724,10 +742,15 @@ ipa user-mod alice --user-auth-type=password
 # Check current lockout policy
 ipa pwpolicy-show
 
-# Intentionally fail login 5+ times (use wrong password)
-for i in {1..6}; do
-  echo "wrongpassword" | kinit bob 2>&1 || true
-done
+# Intentionally fail login 5+ times to trigger lockout.
+# NOTE: kinit reads the password from the controlling terminal (tty), NOT from
+# stdin — so piping ("echo wrongpassword | kinit bob") does NOT work and will not
+# feed a password. Run kinit interactively and type a WRONG password each time:
+#
+#   kinit bob      # type a wrong password, press Enter — repeat 6 times
+#
+# (Do this 6 times by hand. There is no reliable way to script the password entry
+# for kinit; tools like `expect` would be required, which is out of scope here.)
 
 # Check lock status
 ipa user-show bob --all | grep -i "failed\|lock"

@@ -73,24 +73,24 @@ as a Tomcat web application and exposes both a REST API and a web admin interfac
 ```mermaid
 graph TD
     subgraph "Dogtag PKI (pki-tomcat)"
-        CA[CA Subsystem\n:8443/ca/]
-        KRA[KRA Subsystem\nKey Recovery Authority\noptional]
+        CA["CA Subsystem<br/>:8443/ca/"]
+        KRA["KRA Subsystem<br/>Key Recovery Authority<br/>optional"]
     end
 
     subgraph "IPA Integration"
-        API[IPA httpd\n:443/ipa/json] -->|proxy cert requests| CA
-        CMON[certmonger\nipa-submit helper] -->|REST API calls| CA
+        API["IPA httpd<br/>:443/ipa/json"] -->|proxy cert requests| CA
+        CMON["certmonger<br/>ipa-submit helper"] -->|REST API calls| CA
     end
 
     subgraph "Storage"
-        CA -->|cert database| NSS[(NSS DB\n/var/lib/pki/pki-tomcat/alias/)]
-        CA -->|cert/request records| CSDB[(CS 389-DS\nlocalhost:7389)]
-        CSDB <-->|Dogtag replication| REPLICA[(Replica\nDogtag 389-DS)]
+        CA -->|cert database| NSS["("NSS DB<br/>/var/lib/pki/pki-tomcat/alias/")"]
+        CA -->|cert/request records| CSDB["("CS 389-DS<br/>localhost:7389")"]
+        CSDB <-->|Dogtag replication| REPLICA["("Replica<br/>Dogtag 389-DS")"]
     end
 
     subgraph "Clients"
-        SVC[Service needing cert\nhttpd, sshd, nginx] -->|getcert request| CMON
-        ADMIN[Admin\nipa cert-request] -->|IPA API| API
+        SVC["Service needing cert<br/>httpd, sshd, nginx"] -->|getcert request| CMON
+        ADMIN["Admin<br/>ipa cert-request"] -->|IPA API| API
     end
 ```
 
@@ -98,13 +98,13 @@ graph TD
 
 ```mermaid
 graph TD
-    ROOT["IPA CA\n(Self-signed root)\nSubject: CN=Certificate Authority,O=EXAMPLE.COM\nValidity: 20 years\nStored: /etc/ipa/ca.crt"] --> LDAP["LDAP Service Cert\nSubject: CN=ipa1.example.com\nSAN: ipa1.example.com\nValidity: 2 years"]
-    ROOT --> HTTP["HTTP Service Cert\nSubject: CN=ipa1.example.com\nSAN: ipa1.example.com\nValidity: 2 years"]
-    ROOT --> KDC["KDC Cert\n(for PKINIT)\nValidity: 2 years"]
-    ROOT --> DOGTAG["Dogtag RA Cert\n(Registration Authority)\nValidity: 2 years"]
-    ROOT --> HOST["Host Certs\nCN=client01.example.com\nValidity: 2 years"]
-    ROOT --> SVCERT["Service Certs\nCN=HTTP/webapp.example.com\nValidity: 2 years"]
-    ROOT --> SUBCA["Sub-CAs\n(optional)\nSee Module 10"]
+    ROOT["IPA CA<br/>(Self-signed root)<br/>Subject: CN=Certificate Authority,O=EXAMPLE.COM<br/>Validity: 20 years<br/>Stored: /etc/ipa/ca.crt"] --> LDAP["LDAP Service Cert<br/>Subject: CN=ipa1.example.com<br/>SAN: ipa1.example.com<br/>Validity: 2 years"]
+    ROOT --> HTTP["HTTP Service Cert<br/>Subject: CN=ipa1.example.com<br/>SAN: ipa1.example.com<br/>Validity: 2 years"]
+    ROOT --> KDC["KDC Cert<br/>(for PKINIT)<br/>Validity: 2 years"]
+    ROOT --> DOGTAG["Dogtag RA Cert<br/>(Registration Authority)<br/>Validity: 2 years"]
+    ROOT --> HOST["Host Certs<br/>CN=client01.example.com<br/>Validity: 2 years"]
+    ROOT --> SVCERT["Service Certs<br/>CN=HTTP/webapp.example.com<br/>Validity: 2 years"]
+    ROOT --> SUBCA["Sub-CAs<br/>(optional)<br/>See Module 10"]
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -143,14 +143,14 @@ A certificate profile configuration file controls every aspect of the issued cer
 ```mermaid
 graph TD
     subgraph "Certificate Profile: caIPAserviceCert"
-        INP[Input\nCMC or PKCS10 CSR] --> POL
+        INP["Input<br/>CMC or PKCS10 CSR"] --> POL
         POL[Policy Components]
-        POL --> SAN[SubjectAltName extension\nfrom CSR]
-        POL --> KU[Key Usage:\ndigitalSignature\nkeyEncipherment]
-        POL --> EKU[Extended Key Usage:\nserverAuth\nclientAuth]
-        POL --> VALID[Validity: 731 days\n2 years]
+        POL --> SAN["SubjectAltName extension<br/>from CSR"]
+        POL --> KU["Key Usage:<br/>digitalSignature<br/>keyEncipherment"]
+        POL --> EKU["Extended Key Usage:<br/>serverAuth<br/>clientAuth"]
+        POL --> VALID["Validity: 731 days<br/>2 years"]
         POL --> SHA[Signature: SHA256withRSA]
-        POL --> OUT[Output\nPEM certificate]
+        POL --> OUT["Output<br/>PEM certificate"]
     end
 ```
 
@@ -188,10 +188,13 @@ Before requesting a certificate from IPA, you need a Certificate Signing Request
 
 ```bash
 # Generate a private key and CSR for a service
+# 📝 openssl 3 supports -addext, so a SAN can be added inline without a config file.
+#    IPA requires the SAN to match the principal FQDN, so always include it.
 openssl req -newkey rsa:4096 -nodes \
   -keyout /etc/pki/tls/private/webapp.key \
   -out /tmp/webapp.csr \
-  -subj "/CN=webapp.example.com"
+  -subj "/CN=webapp.example.com" \
+  -addext "subjectAltName=DNS:webapp.example.com"
 
 # Or use a config file to include SANs
 cat > /tmp/webapp-openssl.cnf << 'EOF'
@@ -248,20 +251,20 @@ ipa cert-request /tmp/jdoe.csr \
 
 ```mermaid
 flowchart TD
-    A[ipa cert-request CSR\n--principal=...] --> B[IPA API validates:\nDoes principal exist?]
+    A["ipa cert-request CSR<br/>--principal=..."] --> B["IPA API validates:<br/>Does principal exist?"]
     B -->|No| FAIL1[Error: principal not found]
-    B -->|Yes| C[Does profile exist\nand is enabled?]
+    B -->|Yes| C["Does profile exist<br/>and is enabled?"]
     C -->|No| FAIL2[Error: profile not found]
-    C -->|Yes| D[Does caller have permission?\nSystem: Request Certificate]
+    C -->|Yes| D["Does caller have permission?<br/>System: Request Certificate"]
     D -->|No| FAIL3[Error: permission denied]
-    D -->|Yes| E[Validate CSR:\nSAN matches principal FQDN?]
-    E -->|No - SAN mismatch| FAIL4[Error: Subject alt name\ndoes not match principal]
+    D -->|Yes| E["Validate CSR:<br/>SAN matches principal FQDN?"]
+    E -->|No - SAN mismatch| FAIL4["Error: Subject alt name<br/>does not match principal"]
     E -->|Yes| F[Forward CSR to Dogtag CA]
-    F --> G[Dogtag applies profile policies:\nValidity, Key usage, SANs, Signature alg]
-    G --> H{Profile constraints\nsatisfied?}
+    F --> G["Dogtag applies profile policies:<br/>Validity, Key usage, SANs, Signature alg"]
+    G --> H{"Profile constraints<br/>satisfied?"}
     H -->|No| FAIL5[Error: profile constraint violation]
     H -->|Yes| I[Sign certificate with IPA CA key]
-    I --> J[Store cert serial in LDAP\n+ Dogtag internal DB]
+    I --> J["Store cert serial in LDAP<br/>+ Dogtag internal DB"]
     J --> K[Return PEM certificate]
 ```
 
@@ -306,10 +309,10 @@ sequenceDiagram
     participant CA as Dogtag CA
     participant CRL as CRL/OCSP
 
-    ADM->>API: ipa cert-revoke <serial>\n--revocation-reason=4
-    API->>CA: REST: revoke certificate serial N\nreason: Superseded (4)
-    CA->>CA: Mark cert as revoked\nin Dogtag DB
-    CA->>CRL: Update CRL (Certificate Revocation List)\n(regenerated periodically)
+    ADM->>API: ipa cert-revoke <serial><br/>--revocation-reason=4
+    API->>CA: REST: revoke certificate serial N<br/>reason: Superseded (4)
+    CA->>CA: Mark cert as revoked<br/>in Dogtag DB
+    CA->>CRL: Update CRL (Certificate Revocation List)<br/>(regenerated periodically)
     CA->>CRL: OCSP responder reflects revocation immediately
     CA-->>API: Revocation confirmed
     API-->>ADM: Certificate revoked
@@ -326,7 +329,12 @@ sequenceDiagram
 | 4 | Superseded | Cert replaced by new one |
 | 5 | Cessation of Operation | Service decommissioned |
 | 6 | Certificate Hold | Temporary (can be restored) |
-| 9 | Remove from CRL | Remove hold |
+| 8 | Remove from CRL | Remove a held cert from the CRL (delta-CRL only) |
+| 9 | Privilege Withdrawn | Subject no longer authorised for the cert's purpose |
+| 10 | AA Compromise | Attribute authority key exposed |
+
+> 📝 Per RFC 5280 the value `7` is unused. Reason `8` (removeFromCRL) only
+> applies to a certificate previously placed on hold (code `6`).
 
 ```bash
 # Revoke a certificate by serial number
@@ -341,10 +349,13 @@ ipa cert-find --subject=oldservice.example.com \
     done
 
 # Check revocation status with OCSP
+# 📝 -noverify skips verification of the OCSP responder's signing cert, which
+#    keeps the check consistent with the other OCSP examples in this course.
 openssl ocsp \
   -issuer /etc/ipa/ca.crt \
   -cert /etc/pki/tls/certs/webapp.crt \
-  -url http://ipa1.example.com/ca/ocsp
+  -url http://ipa1.example.com/ca/ocsp \
+  -noverify
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -361,12 +372,12 @@ enrolled clients (managing host and service certs).
 
 ```mermaid
 graph TD
-    CMON[certmonger daemon] --> TRACK[(Tracking entries\n/var/lib/certmonger/requests/)]
+    CMON[certmonger daemon] --> TRACK["("Tracking entries<br/>/var/lib/certmonger/requests/")"]
     CMON -->|submit helper: ipa-submit| API[IPA API → Dogtag CA]
-    CMON -->|writes certs| FS[Certificate files\n/etc/pki/tls/certs/\n/etc/ipa/\nNSS databases]
-    CMON -->|pre-save command| PRE[Pre-save hook\ne.g., stop httpd]
-    CMON -->|post-save command| POST[Post-save hook\ne.g., start httpd, reload nginx]
-    TIMER[systemd timer\ncertmonger-renewal.timer] -->|triggers renewal check| CMON
+    CMON -->|writes certs| FS["Certificate files<br/>/etc/pki/tls/certs/<br/>/etc/ipa/<br/>NSS databases"]
+    CMON -->|pre-save command| PRE["Pre-save hook<br/>e.g., stop httpd"]
+    CMON -->|post-save command| POST["Post-save hook<br/>e.g., start httpd, reload nginx"]
+    TIMER["systemd timer<br/>certmonger-renewal.timer"] -->|triggers renewal check| CMON
 ```
 
 ### 5.2 Certmonger State Machine
@@ -375,8 +386,8 @@ Each tracked certificate moves through a state machine:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> MONITORING: getcert request\ncert issued
-    MONITORING --> NEED_TO_ENROLL: new request\nno cert yet
+    [*] --> MONITORING: getcert request<br/>cert issued
+    MONITORING --> NEED_TO_ENROLL: new request<br/>no cert yet
     NEED_TO_ENROLL --> SUBMITTING: submit to CA
     SUBMITTING --> NEED_CA_NAME: CA unknown
     SUBMITTING --> CA_UNREACHABLE: network error
@@ -384,7 +395,7 @@ stateDiagram-v2
     SUBMITTING --> NEED_CSR_REJECTED: CSR problem
     SUBMITTING --> POST_SAVED_CERT: cert issued
     POST_SAVED_CERT --> MONITORING: post-save cmd ran OK
-    MONITORING --> NEED_TO_SUBMIT: cert near expiry\n(renewal window reached)
+    MONITORING --> NEED_TO_SUBMIT: cert near expiry<br/>(renewal window reached)
     NEED_TO_SUBMIT --> SUBMITTING: renewal submit
     CA_UNREACHABLE --> SUBMITTING: retry after backoff
     CA_REJECTED --> [*]: manual intervention needed
@@ -448,7 +459,7 @@ getcert stop-tracking -f /etc/pki/tls/certs/webapp.crt
 
 ```mermaid
 sequenceDiagram
-    participant TIMER as systemd timer\n(certmonger-renewal)
+    participant TIMER as systemd timer<br/>(certmonger-renewal)
     participant CMON as certmonger daemon
     participant IPA as IPA API
     participant CA as Dogtag CA
@@ -456,24 +467,24 @@ sequenceDiagram
 
     TIMER->>CMON: periodic renewal check
 
-    CMON->>CMON: Check each tracked cert:\ncert expires in < 28 days?
+    CMON->>CMON: Check each tracked cert:<br/>cert expires in < 28 days?
 
     Note over CMON: webapp.crt expires in 15 days → renew
 
-    CMON->>CMON: Run pre-save command\n(if configured)
+    CMON->>CMON: Run pre-save command<br/>(if configured)
 
-    CMON->>IPA: Submit renewal CSR\n(ipa-submit helper)
+    CMON->>IPA: Submit renewal CSR<br/>(ipa-submit helper)
     IPA->>CA: Forward CSR
     CA-->>IPA: New certificate
     IPA-->>CMON: New certificate PEM
 
-    CMON->>CMON: Write new cert to\n/etc/pki/tls/certs/webapp.crt
+    CMON->>CMON: Write new cert to<br/>/etc/pki/tls/certs/webapp.crt
 
-    CMON->>SVC: Run post-save command:\nsystemctl reload nginx
+    CMON->>SVC: Run post-save command:<br/>systemctl reload nginx
 
     SVC-->>CMON: Exit 0
 
-    CMON->>CMON: Update state → MONITORING\nUpdate expiry date in tracking entry
+    CMON->>CMON: Update state → MONITORING<br/>Update expiry date in tracking entry
 ```
 
 ### 5.5 Pre-save and Post-save Commands
@@ -483,6 +494,7 @@ sequenceDiagram
 getcert start-tracking \
   -f /etc/pki/tls/certs/webapp.crt \
   -k /etc/pki/tls/private/webapp.key \
+  -c IPA \
   -C "systemctl reload nginx"    # runs after cert is saved
 
 # Example post-save commands for common services:
@@ -542,20 +554,24 @@ The IPA server itself has several certificates managed by certmonger:
 getcert list
 
 # Typical tracked certs on an IPA server:
-# /etc/httpd/alias   - HTTPD (Web UI + API) cert
-# /etc/dirsrv/slapd-EXAMPLE-COM - LDAP service cert
-# /var/lib/ipa/ra-agent.pem - Dogtag RA agent cert
-# /var/kerberos/krb5kdc/kdc.crt - KDC PKINIT cert
-# /var/lib/ipa/certs/httpd.crt - another HTTP cert
+# /var/lib/ipa/certs/httpd.crt   - HTTPD (Web UI + API) cert  (mod_ssl PEM)
+# /var/lib/ipa/private/httpd.key - HTTPD private key          (mod_ssl PEM)
+# /etc/dirsrv/slapd-EXAMPLE-COM  - LDAP service cert (NSS DB)
+# /var/lib/ipa/ra-agent.pem      - Dogtag RA agent cert
+# /var/kerberos/krb5kdc/kdc.crt  - KDC PKINIT cert
 ```
+
+> 📝 FreeIPA 4.12 on RHEL 10 serves the Web UI/API through `mod_ssl` using PEM
+> files (`/var/lib/ipa/certs/httpd.crt` + `/var/lib/ipa/private/httpd.key`).
+> The legacy `/etc/httpd/alias` NSS database (mod_nss) is no longer used.
 
 ```mermaid
 graph TD
     subgraph "IPA Server Certmonger-tracked Certs"
-        H["httpd\nHTTPS UI+API\nHTTP/ipa1.example.com"] -->|cert| HC["etc/httpd/alias\nNSS DB"]
-        L["389-DS\nLDAPS\nldap/ipa1.example.com"] -->|cert| LC["etc/dirsrv/slapd-REALM\nNSS DB"]
-        K["krb5kdc\nPKINIT\nkrbprinc/ipa1.example.com"] -->|cert| KC["var/kerberos/krb5kdc\nkdc.crt"]
-        R["Dogtag RA Agent\nregistration authority"] -->|cert| RC["var/lib/ipa\nra-agent.pem"]
+        H["httpd<br/>HTTPS UI+API<br/>HTTP/ipa1.example.com"] -->|cert| HC["var/lib/ipa/certs/httpd.crt<br/>mod_ssl PEM"]
+        L["389-DS<br/>LDAPS<br/>ldap/ipa1.example.com"] -->|cert| LC["etc/dirsrv/slapd-EXAMPLE-COM<br/>NSS DB"]
+        K["krb5kdc<br/>PKINIT<br/>krbprinc/ipa1.example.com"] -->|cert| KC["var/kerberos/krb5kdc<br/>kdc.crt"]
+        R["Dogtag RA Agent<br/>registration authority"] -->|cert| RC["var/lib/ipa<br/>ra-agent.pem"]
     end
 ```
 
@@ -587,6 +603,17 @@ openssl x509 -in /etc/pki/tls/certs/webapp.crt -text -noout \
 ### 6.3 Tracking Certificates in NSS Databases
 
 Many built-in IPA services store certificates in NSS databases instead of PEM files. Track those entries directly so renewal automation matches the actual service storage format.
+
+> 📝 IPA already tracks its own system certificates (the 389-DS `Server-Cert`,
+> the httpd cert, the RA agent, the KDC PKINIT cert, etc.) via certmonger. Do
+> NOT add duplicate tracking for IPA-managed certs — the example below applies
+> to YOUR OWN service that happens to use an NSS database. The `slapd-EXAMPLE-COM`
+> path is shown only to illustrate the NSS-tracking syntax.
+
+> ⚠️ Restarting `dirsrv@EXAMPLE-COM.service` restarts the IPA Directory Server,
+> which interrupts the entire IPA stack (LDAP, Kerberos KDC backend, the Web UI,
+> and any service depending on 389-DS). For IPA's own `Server-Cert`, IPA handles
+> renewal and reload automatically — never wire a manual restart into it.
 
 ```bash
 # Track the 389-DS Server-Cert entry in the directory server NSS database
@@ -672,6 +699,7 @@ getcert start-tracking \
   -f /etc/pki/tls/certs/webapp.crt \
   -k /etc/pki/tls/private/webapp.key \
   -K HTTP/webapp.example.com \
+  -c IPA \
   -C "echo 'Cert renewed at $(date)' >> /tmp/cert-renewal.log"
 
 # View tracking status

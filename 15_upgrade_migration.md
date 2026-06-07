@@ -56,7 +56,7 @@ graph TD
         P3[Upgrade replicas one at a time — never all simultaneously]
         P4[Run ipa-healthcheck before and after each step]
         P5[Read release notes for breaking changes]
-        P6[Upgrade lowest-version replica first]
+        P6["Upgrade the CA renewal master first, then other CA replicas, then non-CA replicas"]
         P7[IPA supports N to N+1 minor upgrades — no version skipping]
     end
 ```
@@ -93,8 +93,8 @@ sudo ipa-healthcheck --all --output-type human 2>&1 | \
 # Target: 0 ERRORs. Resolve before proceeding.
 
 # 2. Check replication is in sync
-ipa topologysuffix-verify dc=ipa,dc=example,dc=com
-ipa topologysegment-find dc=ipa,dc=example,dc=com
+ipa topologysuffix-verify domain
+ipa topologysegment-find domain
 
 # 3. Check certificate validity (don't upgrade with near-expiry certs)
 sudo getcert list | grep -E "expires:|status:"
@@ -214,8 +214,9 @@ ipa user-del upgrade-test
 # Run manually if scriptlet failed or to verify
 sudo ipa-server-upgrade
 
-# Check what was done
-sudo journalctl -u ipa-server-upgrade --since "today"
+# Check what was done (there is no ipa-server-upgrade systemd unit;
+# the upgrade writes its own log file)
+sudo tail -n 200 /var/log/ipaupgrade.log
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -274,8 +275,7 @@ sequenceDiagram
 ```bash
 # If ipa-server-upgrade fails mid-run:
 
-# Check the log
-sudo journalctl -u ipa-server-upgrade
+# Check the log (ipa-server-upgrade is not a systemd unit — read its log file)
 sudo cat /var/log/ipaupgrade.log
 
 # Common fixes:
@@ -285,7 +285,7 @@ df -h /var
 sudo ipa-server-upgrade
 
 # 2. 389-DS not running
-sudo systemctl start dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl start dirsrv@EXAMPLE-COM.service
 sudo ipa-server-upgrade
 
 # 3. Kerberos auth failure during upgrade
@@ -321,23 +321,30 @@ ipa topologysuffix-verify domain
 
 ```mermaid
 graph TD
-    PLAN["Upgrade Plan<br/>(example: 3-replica environment)"]
-    R1["Replica 1 — Non-critical<br/>Upgrade FIRST (lowest risk)"]
-    R2["Replica 2 — Secondary<br/>Upgrade SECOND (after R1 verified)"]
-    R3["Replica 3 — Critical / CRL Master<br/>Upgrade LAST (after R1+R2 verified)"]
+    PLAN["Upgrade Plan<br/>(example: 3-server environment)"]
+    R1["CA renewal master<br/>Upgrade FIRST"]
+    R2["Other CA replicas<br/>Upgrade SECOND (after renewal master verified)"]
+    R3["Non-CA replicas<br/>Upgrade LAST"]
     PLAN --> R1 --> R2 --> R3
 ```
 
+> 📝 **Why the CA renewal master goes first.** It owns shared certificate
+> renewal (the CA subsystem certs the whole topology depends on). A newer
+> renewal master and CA schema are tolerated by older replicas, but an older
+> renewal master driving renewals for already-upgraded CA replicas is the
+> fragile direction. So: CA renewal master → other CA replicas → non-CA
+> replicas. (Identify it with `ipa config-show | grep "CA renewal master"`.)
+
 ### 5.2 Upgrade Order Decision Matrix
 
-| Replica trait | Score | Upgrade guidance |
+| Replica trait | Order | Upgrade guidance |
 |--------------|-------|------------------|
-| Handles CRL or CA renewal master duties | 5 | Upgrade late, after other replicas are validated |
-| Serves most client traffic or DNS SRV weight | 3 | Upgrade after a quieter replica proves healthy |
-| Hosts unique integration points or external dependencies | 2 | Upgrade only after rollback is clear |
-| Low client load and no special roles | 1 | Best candidate for the first upgrade |
+| CA renewal master (owns shared cert renewal) | 1st | Upgrade FIRST — see the note in §5.1 |
+| Other CA replicas (have an installed CA) | 2nd | Upgrade after the renewal master is validated |
+| Non-CA replica serving most client traffic / DNS SRV weight | 3rd | Upgrade after a quieter non-CA replica proves healthy |
+| Non-CA replica, low client load, no special roles | last | Best candidate for the final upgrade |
 
-Start with the lowest-score replica, keep the highest-score replica for last, and document why each server landed in that order before the maintenance window begins.
+Upgrade in CA-role order — **CA renewal master first, then other CA replicas, then non-CA replicas** — and document why each server landed in that order before the maintenance window begins. Within the non-CA group, sequence quieter replicas before busier ones.
 
 ### 5.3 Step-by-Step Rolling Upgrade
 
@@ -348,7 +355,7 @@ Start with the lowest-score replica, keep the highest-score replica for last, an
 SERVER=ipa2.example.com
 
 # 1. Verify replication is healthy
-ipa topologysuffix-verify dc=ipa,dc=example,dc=com
+ipa topologysuffix-verify domain
 
 # 2. Check clients are using OTHER replicas (no single point of failure)
 # DNS SRV weight/priority should distribute clients
@@ -462,7 +469,7 @@ done
 ```mermaid
 flowchart LR
     OLDLDAP["OpenLDAP<br/>ou=People,dc=old,dc=com<br/>ou=Groups,dc=old,dc=com"]
-    IPA["FreeIPA<br/>cn=users,cn=accounts,dc=ipa,dc=example,dc=com"]
+    IPA["FreeIPA<br/>cn=users,cn=accounts,dc=example,dc=com"]
 
     OLDLDAP -->|"1. Export LDIF"| LDIF["ldap-export.ldif"]
     LDIF -->|"2. Transform"| TRANSFORMED["Transformed LDIF<br/>(adjust DNs, attrs)"]
@@ -525,13 +532,13 @@ OpenLDAP password hashes (SSHA, MD5) are **not compatible** with Kerberos. Migra
 ```bash
 # After migration, users must authenticate via the migration portal
 # Enable migration mode:
-ipa config-mod --enable-migration-mode=TRUE
+ipa config-mod --enable-migration=TRUE
 
 # Users visit https://ipa1.example.com/ipa/migration/
 # They enter old LDAP password → IPA creates Kerberos keys
 
 # After migration period, disable migration mode:
-ipa config-mod --enable-migration-mode=FALSE
+ipa config-mod --enable-migration=FALSE
 ```
 
 ### 7.5 Migration Flow Diagram
@@ -562,6 +569,10 @@ sequenceDiagram
 ### 8.1 NIS Is Removed in RHEL 10
 
 NIS (`ypserv`, `ypbind`, `yp-tools`) is **not available** in RHEL 10. Migration to FreeIPA is mandatory before upgrading to RHEL 10.
+
+> 📝 During a transition, FreeIPA's **slapi-nis** plugin can serve NIS maps to
+> remaining legacy NIS clients from the IPA directory (`ipa-nis-manage enable`),
+> letting you migrate clients gradually instead of in one cut-over.
 
 ### 8.2 Export NIS Maps
 
@@ -778,7 +789,11 @@ ipa migrate-ds \
     --group-container="CN=Users" \
     --group-objectclass=group \
     --schema=RFC2307bis \
-    ldap://dc1.ad.example.com
+    ldaps://dc1.ad.example.com
+
+# 📝 Use ldaps:// — a plain ldap:// bind sends the service-account password and
+# all entries in cleartext. Trust the AD CA certificate first, e.g.:
+#   cp ad-ca.crt /etc/pki/ca-trust/source/anchors/ && update-ca-trust
 
 # Note: AD uses different attribute names than POSIX LDAP
 # IPA migrate-ds handles common mappings automatically
@@ -804,7 +819,9 @@ AD passwords cannot be exported — users must reset them:
 
 ```bash
 # Option 1: Admin resets passwords for all users (bulk)
-ipa user-find --sizelimit=0 --uid="ad-migrated-*" \
+# (positional criteria does a substring search; --uid is exact-match and
+#  does not support wildcards)
+ipa user-find ad-migrated --sizelimit=0 \
     --raw --json | \
     python3 -c "
 import json,sys,subprocess
@@ -817,7 +834,7 @@ for u in data['result']['result']:
 "
 
 # Option 2: Self-service portal
-ipa config-mod --enable-migration-mode=TRUE
+ipa config-mod --enable-migration=TRUE
 # Users visit https://ipa1.example.com/ipa/migration/
 # and enter their AD password
 
@@ -845,6 +862,8 @@ sudo ipa-healthcheck --all 2>&1 | head -30
 sudo ipa-server-upgrade --debug
 
 # Step 3: If in-place recovery fails — restore from backup
+# ⚠️ ipa-restore OVERWRITES all current data with the backup contents.
+# Every other replica must be re-initialized from this server afterwards.
 sudo ipactl stop
 sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 
@@ -890,6 +909,8 @@ sudo ipa-backup --dir=/mnt/backup/ipa
 ls -lh /var/lib/ipa/backup/
 
 # Restore (stops IPA, restores, starts IPA)
+# ⚠️ Destructive — replaces ALL current data with the backup; changes made
+# since the backup are lost, and all replicas must be re-initialized after.
 sudo ipa-restore /var/lib/ipa/backup/ipa-full-2026-02-26-02-00-00
 
 # Restore with specific DM password
@@ -899,6 +920,7 @@ sudo ipa-restore \
 
 # After restore on single master — re-initialize all replicas
 # (ipa-replica-manage re-initialize is still the correct low-level tool for this)
+# ⚠️ re-initialize OVERWRITES the target replica's entire database from --from
 sudo ipa-replica-manage -p 'DM_Password' re-initialize \
     --from=ipa1.example.com
 ```
@@ -1020,9 +1042,9 @@ done
 ipa user-find | grep miguser
 
 # Simulate password migration
-ipa config-mod --enable-migration-mode=TRUE
+ipa config-mod --enable-migration=TRUE
 echo "Migration mode enabled — users can now set passwords via /ipa/migration/"
-ipa config-mod --enable-migration-mode=FALSE
+ipa config-mod --enable-migration=FALSE
 
 # Clean up test users
 ipa user-del miguser1 miguser2

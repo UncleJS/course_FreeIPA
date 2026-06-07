@@ -131,15 +131,15 @@ ipa crlgen-manage status
 
 ```mermaid
 flowchart LR
-    A[RHEL 10 server\nstatic IP + FQDN] --> B[Set crypto policy\nDEFAULT or FIPS]
-    B --> C[dnf install\nipa-server ipa-server-dns]
-    C --> D[firewall-cmd\nadd IPA services]
+    A["RHEL 10 server<br/>static IP + FQDN"] --> B["Set crypto policy<br/>DEFAULT or FIPS"]
+    B --> C["dnf install<br/>ipa-server ipa-server-dns"]
+    C --> D["firewall-cmd<br/>add IPA services"]
     D --> E{External CA?}
-    E -- No --> F[ipa-server-install\n--setup-dns]
-    E -- Yes --> G[ipa-server-install\n--external-ca]
-    G --> H[Sign CSR\nat external CA]
-    H --> I[ipa-server-install\n--external-cert-file]
-    F --> J[kinit admin\nipactl status\nhealthcheck]
+    E -- No --> F["ipa-server-install<br/>--setup-dns"]
+    E -- Yes --> G["ipa-server-install<br/>--external-ca"]
+    G --> H["Sign CSR<br/>at external CA"]
+    H --> I["ipa-server-install<br/>--external-cert-file"]
+    F --> J["kinit admin<br/>ipactl status<br/>healthcheck"]
     I --> J
 ```
 
@@ -215,8 +215,8 @@ ipa-csreplica-manage status ipa2.example.com
 ### Step 5 — Verify topology
 
 ```bash
-ipa topologysegment-find dc=example,dc=com
-ipa topologysegment-find cn=cas
+ipa topologysegment-find domain
+ipa topologysegment-find ca
 ipa-healthcheck --failures-only
 ```
 
@@ -288,13 +288,13 @@ ipa-client-install \
 ```bash
 # On IPA server: generate one-time password for the host
 # Step 1 — create the host object (if it doesn't already exist)
-ipa host-add client1.example.com --ip-address=192.168.1.20 --force
+ipa host-add client01.example.com --ip-address=192.168.1.20 --force
 # Step 2 — set/generate an OTP on the existing host object
-ipa host-mod client1.example.com --otp="$(openssl rand -hex 16)"
+ipa host-mod client01.example.com --otp="$(openssl rand -hex 16)"
 
 # On client
 ipa-client-install \
-  --hostname=client1.example.com \
+  --hostname=client01.example.com \
   --domain=example.com \
   --realm=EXAMPLE.COM \
   --server=ipa1.example.com \
@@ -321,7 +321,7 @@ ssh -l admin localhost   # tests GSSAPI login
 # On IPA server — restrict login to specific host group
 ipa hbacrule-add allow_sysadmins --servicecat=all
 ipa hbacrule-add-user allow_sysadmins --groups=sysadmins
-ipa hbacrule-add-host allow_sysadmins --hosts=client1.example.com
+ipa hbacrule-add-host allow_sysadmins --hosts=client01.example.com
 
 # Disable the default allow_all rule (production environments)
 ipa hbacrule-disable allow_all
@@ -351,8 +351,9 @@ ipa service-add HTTP/webserver.example.com
 ### Step 2 — Allow the host to manage the cert (if issuing from the host itself)
 
 ```bash
-# On IPA server — grant host permission to retrieve its own cert
-ipa service-allow-retrieve-cert HTTP/webserver.example.com \
+# On IPA server — let the host manage the service so it can retrieve
+# the keytab/cert using its own host credentials
+ipa service-add-host HTTP/webserver.example.com \
   --hosts=webserver.example.com
 ```
 
@@ -427,10 +428,10 @@ sequenceDiagram
     participant SVC as nginx
 
     Note over CM: 30 days before expiry
-    CM->>IPA: Certificate renewal request\n(HTTP/webserver.example.com)
+    CM->>IPA: Certificate renewal request<br/>(HTTP/webserver.example.com)
     IPA-->>CM: New certificate issued
     CM->>CM: Write cert + key to disk
-    CM->>SVC: systemctl reload nginx\n(post-renew hook)
+    CM->>SVC: systemctl reload nginx<br/>(post-renew hook)
     Note over SVC: Serving new certificate
 ```
 
@@ -445,7 +446,7 @@ sequenceDiagram
 **Prerequisites:**
 - IPA master with DNS integration
 - AD domain controller reachable from IPA server
-- Bi-directional DNS resolution between `example.com` and `ad.corp` (or DNS forwarders configured)
+- Bi-directional DNS resolution between `example.com` and `ad.example.com` (or DNS forwarders configured)
 - IPA CA (not external CA-only) — Trust Controller requires a full CA
 - AD Administrator credentials
 
@@ -458,7 +459,7 @@ ipa-adtrust-install \
   --add-sids \
   --add-agents \
   --enable-compat \
-  --netbios-name=EXAMPLE \
+  --netbios-name=IPA \
   --admin-name=admin \
   --admin-password=<admin-password>
 ```
@@ -467,13 +468,13 @@ ipa-adtrust-install \
 
 ```bash
 # Forward AD DNS zone to AD DC
-ipa dnsforwardzone-add ad.corp \
-  --forwarder=192.168.2.10 \
+ipa dnsforwardzone-add ad.example.com \
+  --forwarder=192.168.10.10 \
   --forward-policy=only
 
 # Verify resolution
-dig @192.168.1.10 _kerberos._tcp.ad.corp SRV
-dig @192.168.1.10 _ldap._tcp.ad.corp SRV
+dig @192.168.1.10 _kerberos._tcp.ad.example.com SRV
+dig @192.168.1.10 _ldap._tcp.ad.example.com SRV
 ```
 
 ### Step 3 — Verify IPA DNS is reachable from AD DC
@@ -491,7 +492,7 @@ dig @192.168.1.10 _ldap._tcp.ad.corp SRV
 kinit admin
 ipa trust-add \
   --type=ad \
-  ad.corp \
+  ad.example.com \
   --admin=Administrator \
   --password
 # Enter AD Administrator password when prompted
@@ -500,11 +501,11 @@ ipa trust-add \
 ### Step 5 — Fetch AD domains
 
 ```bash
-ipa trust-fetch-domains ad.corp
-ipa trust-show ad.corp
+ipa trust-fetch-domains ad.example.com
+ipa trust-show ad.example.com
 
 # If AD recently changed DCs or SRV records
-wbinfo --dc-info=ad.corp
+wbinfo --dc-info=ad.example.com
 ```
 
 ### Step 6 — Verify AD user resolution
@@ -514,12 +515,12 @@ wbinfo --dc-info=ad.corp
 systemctl restart sssd && sss_cache -E
 
 # Look up AD users
-id jdoe@ad.corp
-getent passwd jdoe@ad.corp
-getent group "domain users@ad.corp"
+id jdoe@ad.example.com
+getent passwd jdoe@ad.example.com
+getent group "domain users@ad.example.com"
 
 # Kerberos cross-realm
-kinit jdoe@AD.CORP
+kinit jdoe@AD.EXAMPLE.COM
 kvno host/ipa1.example.com
 ```
 
@@ -532,7 +533,8 @@ ipa group-add-member ad_admins_ext \
   --external "S-1-5-21-<domain-SID>-512"   # Domain Admins SID
 
 # Create POSIX group and nest the external group
-ipa group-add posix_ad_admins --gid=60001
+# ⚠️ Don't hardcode --gid: a fixed GID can collide with the trust/ID range — let IPA assign it
+ipa group-add posix_ad_admins
 ipa group-add-member posix_ad_admins --groups=ad_admins_ext
 
 # Grant SSH access via HBAC
@@ -545,14 +547,14 @@ ipa hbacrule-add-host allow_ad_admins --hostcat=all
 
 ```mermaid
 flowchart TD
-    A[Install ipa-server-trust-ad\nipa-adtrust-install] --> B[DNS forwarder:\nIPA → AD zone]
-    B --> C[DNS forwarder:\nAD → IPA zone]
-    C --> D[ipa trust-add\n--type=ad ad.corp]
+    A["Install ipa-server-trust-ad<br/>ipa-adtrust-install"] --> B["DNS forwarder:<br/>IPA → AD zone"]
+    B --> C["DNS forwarder:<br/>AD → IPA zone"]
+    C --> D["ipa trust-add<br/>--type=ad ad.example.com"]
     D --> E[ipa trust-fetch-domains]
-    E --> F[systemctl restart sssd\nsss_cache -E]
-    F --> G{id jdoe@ad.corp\nreturns UID?}
-    G -- Yes --> H[Configure HBAC/sudo\nfor AD groups]
-    G -- No --> I[Check DNS resolution\nwbinfo --ping-dc\njournalctl sssd]
+    E --> F["systemctl restart sssd<br/>sss_cache -E"]
+    F --> G{"id jdoe@ad.example.com<br/>returns UID?"}
+    G -- Yes --> H["Configure HBAC/sudo<br/>for AD groups"]
+    G -- No --> I["Check DNS resolution<br/>wbinfo --ping-dc<br/>journalctl sssd"]
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -668,9 +670,9 @@ graph LR
     hd_bob([hd_bob])     --> HG
     HG --> HR[Helpdesk Role]
     HR --> HP[Helpdesk Privilege]
-    HP --> P1[Permission:\nReset Password]
-    HP --> P2[Permission:\nUnlock Account]
-    P1 --> DS[(389-DS\nnon-admin users only)]
+    HP --> P1["Permission:<br/>Reset Password"]
+    HP --> P2["Permission:<br/>Unlock Account"]
+    P1 --> DS["("389-DS<br/>non-admin users only")"]
     P2 --> DS
 ```
 
@@ -789,12 +791,12 @@ flowchart TD
     A[RHEL 10 fresh install] --> B[fips-mode-setup --enable]
     B --> C[reboot]
     C --> D{fips_enabled = 1?}
-    D -- No --> E[Check kernel cmdline:\ncat /proc/cmdline | grep fips]
-    D -- Yes --> F[update-crypto-policies --show\nExpect: FIPS]
-    F --> G[dnf install ipa-server\nipa-server-dns]
-    G --> H[ipa-server-install\n--setup-dns ...]
-    H --> I[Verify key sizes ≥ 3072\nVerify enctypes = AES-SHA2]
-    I --> J[ipa-healthcheck\n--failures-only]
+    D -- No --> E["Check kernel cmdline:<br/>cat /proc/cmdline | grep fips"]
+    D -- Yes --> F["update-crypto-policies --show<br/>Expect: FIPS"]
+    F --> G["dnf install ipa-server<br/>ipa-server-dns"]
+    G --> H["ipa-server-install<br/>--setup-dns ..."]
+    H --> I["Verify key sizes ≥ 3072<br/>Verify enctypes = AES-SHA2"]
+    I --> J["ipa-healthcheck<br/>--failures-only"]
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -819,7 +821,7 @@ kinit admin
 ipa server-find --all | grep -E "Server name:|Enabled roles:"
 
 # Check topology
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 ipa topologysegment-find cn=cas
 
 # Check CA replicas
@@ -868,7 +870,7 @@ ipa server-del ipa2.example.com
 
 # Confirm removal
 ipa server-find
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 ```
 
 ### Step 6 — Uninstall IPA on the removed replica (optional but recommended)
@@ -893,7 +895,7 @@ ipa dnsrecord-del 1.168.192.in-addr.arpa 11 --ptr-rec=ipa2.example.com.
 ```bash
 ipa-healthcheck --failures-only
 ipa server-find
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -991,17 +993,17 @@ watch -n10 'getcert list | grep -E "Request ID|status"'
 ```mermaid
 flowchart TD
     A([CA / Server Lost]) --> B{Backup available?}
-    B -- No --> C[Manual LDAP recovery\nor rebuild from scratch\n→ Module 14]
+    B -- No --> C["Manual LDAP recovery<br/>or rebuild from scratch<br/>→ Module 14"]
     B -- Yes --> D{Full or Data backup?}
-    D -- Full --> E[Reinstall RHEL 10\nsame hostname+IP]
+    D -- Full --> E["Reinstall RHEL 10<br/>same hostname+IP"]
     E --> F[dnf install ipa-server]
-    F --> G[ipa-restore\n/var/lib/ipa/backup/ipa-full-*]
-    D -- Data --> H[ipa-restore --data\n/var/lib/ipa/backup/ipa-data-*]
-    G --> I[ipactl status\nkinit admin]
+    F --> G["ipa-restore<br/>/var/lib/ipa/backup/ipa-full-*"]
+    D -- Data --> H["ipa-restore --data<br/>/var/lib/ipa/backup/ipa-data-*"]
+    G --> I["ipactl status<br/>kinit admin"]
     H --> I
-    I --> J[ipa-healthcheck\n--failures-only]
-    J --> K[ipa-replica-manage\nforce-sync replicas]
-    K --> L[Renew certs\nif backup was old]
+    I --> J["ipa-healthcheck<br/>--failures-only"]
+    J --> K["ipa-replica-manage<br/>force-sync replicas"]
+    K --> L["Renew certs<br/>if backup was old"]
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -1089,8 +1091,8 @@ ipa config-show | grep migration
 # They enter their old LDAP password → IPA creates a Kerberos key
 
 # Alternative: Force password reset for all migrated users
-for user in $(ipa user-find --sizelimit=0 | awk '/User login/{print $NF}'); do
-  ipa user-mod "$user" --password-expiration="$(date -u +%Y%m%d%H%M%SZ)"
+for user in $(ipa user-find --sizelimit=0 --pkey-only --raw | awk '/uid:/{print $2}'); do
+  ipa user-mod "$user" --setattr=krbPasswordExpiration="$(date -u +%Y%m%d%H%M%SZ)"
 done
 ```
 
@@ -1106,7 +1108,7 @@ ipa config-show | grep migration
 ```bash
 # From an enrolled client
 kinit jdoe   # use migrated password
-ssh -l jdoe client1.example.com
+ssh -l jdoe client01.example.com
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -1140,7 +1142,7 @@ ls -lth /var/lib/ipa/backup/ | head -5
 kinit admin
 ipa-healthcheck --failures-only
 ipa-replica-manage list --verbose
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 ```
 
 ### Step 3 — Upgrade replicas first (non-CA replicas first, then CA replicas)
@@ -1168,7 +1170,7 @@ ipa-healthcheck --failures-only
 
 ```bash
 # From master, verify replica is in sync
-ipa topologysuffix-verify dc=example,dc=com
+ipa topologysuffix-verify domain
 ```
 
 ### Step 5 — Upgrade CA replicas
@@ -1202,7 +1204,7 @@ ipa-healthcheck --failures-only
 kinit admin
 ipa user-find --sizelimit=3
 ipa cert-find --sizelimit=3
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 ipa-healthcheck --failures-only --output-type json | python3 -m json.tool
 ```
 
@@ -1221,14 +1223,14 @@ systemctl restart sssd
 ```mermaid
 flowchart LR
     A([Start]) --> B[Backup all servers]
-    B --> C[ipa-healthcheck\nall servers clean?]
+    B --> C["ipa-healthcheck<br/>all servers clean?"]
     C -- No --> D[Fix issues first]
-    C -- Yes --> E[Upgrade non-CA replicas\none at a time]
-    E --> F[Verify replication\nafter each replica]
-    F --> G[Upgrade CA replicas\none at a time]
+    C -- Yes --> E["Upgrade non-CA replicas<br/>one at a time"]
+    E --> F["Verify replication<br/>after each replica"]
+    F --> G["Upgrade CA replicas<br/>one at a time"]
     G --> H[Verify CA replication]
     H --> I[Upgrade master]
-    I --> J[Full ipa-healthcheck\nall servers]
+    I --> J["Full ipa-healthcheck<br/>all servers"]
     J --> K[Rolling client upgrades]
     K --> L([Complete ✓])
 ```
@@ -1334,7 +1336,8 @@ openssl x509 -noout -text -in /var/lib/ipa/certs/httpd.crt | grep "CRL Distribut
 ### Step 8 — Enable IPA audit logging
 
 ```bash
-# Enable DS audit log
+# Enable DS audit log — set all three attributes (mirrors Module 13 §audit)
+dsconf slapd-EXAMPLE-COM config replace nsslapd-auditlog-enable=on
 dsconf slapd-EXAMPLE-COM config replace nsslapd-auditlog-logging-enabled=on
 dsconf slapd-EXAMPLE-COM config replace nsslapd-auditlog=/var/log/dirsrv/slapd-EXAMPLE-COM/audit
 

@@ -244,9 +244,9 @@ ipa role-show "Helpdesk"
 ```bash
 # View raw ACIs in LDAP (for advanced debugging)
 sudo ldapsearch -x -H ldaps://ipa1.example.com \
-    -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
+    -D "uid=admin,cn=users,cn=accounts,dc=example,dc=com" \
     -W \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     -s one \
     "(objectClass=*)" \
     aci | grep "^aci:" | head -20
@@ -254,13 +254,13 @@ sudo ldapsearch -x -H ldaps://ipa1.example.com \
 # ACIs on user subtree
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
+    -b "cn=users,cn=accounts,dc=example,dc=com" \
     -s base "(objectClass=*)" aci
 
 # ACIs on a specific user
 sudo ldapsearch -x -H ldap://localhost \
     -D "cn=Directory Manager" -W \
-    -b "uid=jsmith,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
+    -b "uid=jsmith,cn=users,cn=accounts,dc=example,dc=com" \
     -s base "(objectClass=*)" aci
 
 # IPA manages ACIs automatically via permissions
@@ -303,7 +303,7 @@ ipa --debug user-mod jsmith --title="Test" 2>&1 | \
     grep -E "RESULT|error|denied"
 
 # 6. Check 389-DS access log for the actual LDAP result code
-sudo tail -20 /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/access | \
+sudo tail -20 /var/log/dirsrv/slapd-EXAMPLE-COM/access | \
     grep -E "ERR=50|RESULT err=50"
 # ERR=50 = Insufficient access rights
 

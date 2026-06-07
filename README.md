@@ -81,7 +81,7 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 | 88, 464 | TCP+UDP | Kerberos KDC / kpasswd |
 | 53 | TCP+UDP | DNS |
 | 123 | UDP | NTP |
-| 7389 | TCP | Dogtag CA (internal) |
+| 7389 | TCP | Dogtag CA replication (legacy CA replicas only) |
 
 ---
 
@@ -150,8 +150,8 @@ Operations   -> cheatsheets/ (use as reference at any level)
 
 ## Conventions Used in This Course
 
-- `#` — command run as **root** or with `sudo`
-- `$` — command run as a **regular user** or `admin`
+- Commands are shown without shell prompts; copy the line as-is.
+- Commands that require **root**/`sudo` are indicated in the surrounding text or inline comments.
 - `(server)` — run on the **IPA server**
 - `(client)` — run on an **enrolled client**
 - 📝 **Note** — important clarification

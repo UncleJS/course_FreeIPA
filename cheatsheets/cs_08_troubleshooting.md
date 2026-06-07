@@ -44,7 +44,7 @@ ipactl status
 kinit admin && klist
 
 # 4. Basic LDAP query
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y GSSAPI -b "dc=example,dc=com" "(uid=admin)" dn 2>&1 | head -20
 
 # 5. DNS self-resolution
@@ -74,7 +74,7 @@ ipactl restart           # restart all (graceful)
 ipactl stop && ipactl start   # full cycle
 
 # Individual service restart
-systemctl restart dirsrv@IPA-EXAMPLE-COM
+systemctl restart dirsrv@EXAMPLE-COM
 systemctl restart krb5kdc
 systemctl restart kadmin
 systemctl restart httpd
@@ -86,7 +86,7 @@ systemctl restart ipa-custodia
 ### 2.2 Service Status Detail
 
 ```bash
-systemctl status dirsrv@IPA-EXAMPLE-COM --no-pager -l
+systemctl status dirsrv@EXAMPLE-COM --no-pager -l
 systemctl status krb5kdc --no-pager -l
 systemctl status pki-tomcatd@pki-tomcat --no-pager -l
 systemctl status httpd --no-pager -l
@@ -143,8 +143,8 @@ ipa-healthcheck --source ipahealthcheck.ipa.dna
 
 | Component | Log Path |
 |-----------|----------|
-| 389-DS (Directory) | `/var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors` |
-| 389-DS access | `/var/log/dirsrv/slapd-IPA-EXAMPLE-COM/access` |
+| 389-DS (Directory) | `/var/log/dirsrv/slapd-EXAMPLE-COM/errors` |
+| 389-DS access | `/var/log/dirsrv/slapd-EXAMPLE-COM/access` |
 | KDC | `/var/log/krb5kdc.log` |
 | kadmin | `/var/log/kadmind.log` |
 | Apache / WebUI | `/var/log/httpd/error_log` |
@@ -162,13 +162,13 @@ ipa-healthcheck --source ipahealthcheck.ipa.dna
 
 ```bash
 # Live tail of multiple logs simultaneously
-journalctl -f -u krb5kdc -u dirsrv@IPA-EXAMPLE-COM -u httpd -u pki-tomcatd@pki-tomcat
+journalctl -f -u krb5kdc -u dirsrv@EXAMPLE-COM -u httpd -u pki-tomcatd@pki-tomcat
 
 # Last 100 lines of DS errors
-journalctl -u dirsrv@IPA-EXAMPLE-COM -n 100 --no-pager
+journalctl -u dirsrv@EXAMPLE-COM -n 100 --no-pager
 
 # Search for errors in DS log
-journalctl -u dirsrv@IPA-EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cannot'
+journalctl -u dirsrv@EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cannot'
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -252,7 +252,7 @@ ipa pwpolicy-show admins
 ipa otptoken-find --owner=jdoe
 
 # Disable a token
-ipa otptoken-mod <token-id> --ipatokenDisabled=TRUE
+ipa otptoken-mod <token-id> --setattr=ipatokenDisabled=True
 
 # Check if user requires MFA
 ipa user-show jdoe --all | grep authtypes
@@ -279,7 +279,7 @@ grep pkinit /etc/krb5.conf
 
 ```bash
 # LDAP via socket (fastest, server-local only)
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=config" "(cn=config)" dn 2>/dev/null | head -5
 
 # LDAP via network with GSSAPI (from client)
@@ -296,15 +296,15 @@ ldapsearch -H ldaps://ipa1.example.com:636 \
 
 ```bash
 # Find user
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=users,cn=accounts,dc=example,dc=com" "(uid=jdoe)"
 
 # Find group
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=groups,cn=accounts,dc=example,dc=com" "(cn=admins)"
 
 # Count all users
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=users,cn=accounts,dc=example,dc=com" \
   "(objectClass=inetOrgPerson)" dn 2>/dev/null | grep "^dn:" | wc -l
 ```
@@ -313,9 +313,9 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
 
 ```bash
 # Only possible locally as root
-dsconf slapd-IPA-EXAMPLE-COM config replace nsslapd-rootpw="$(pwdhash -s PBKDF2_SHA256 'NewPassword123!')"
+dsconf slapd-EXAMPLE-COM config replace nsslapd-rootpw="$(pwdhash -s PBKDF2_SHA256 'NewPassword123!')"
 # OR
-ldappasswd -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldappasswd -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -D "cn=Directory Manager" -S
 ```
 
@@ -323,24 +323,24 @@ ldappasswd -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
 
 ```bash
 # List indexes
-dsconf slapd-IPA-EXAMPLE-COM index list
+dsconf slapd-EXAMPLE-COM index list
 
 # Reindex after schema change
-dsconf slapd-IPA-EXAMPLE-COM index reindex --wait
+dsconf slapd-EXAMPLE-COM index reindex --wait
 
 # Check schema
-dsconf slapd-IPA-EXAMPLE-COM schema objectclass list | grep ipa
+dsconf slapd-EXAMPLE-COM schema objectclass list | grep ipa
 ```
 
 ### 5.5 DS Performance
 
 ```bash
 # Connection count
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL -b "cn=monitor" "(objectClass=*)" currentconnections 2>/dev/null
 
 # Slow query threshold (ms)
-dsconf slapd-IPA-EXAMPLE-COM config get nsslapd-idletimeout nsslapd-ioblocktimeout
+dsconf slapd-EXAMPLE-COM config get nsslapd-idletimeout nsslapd-ioblocktimeout
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -379,7 +379,7 @@ for cert in \
   /etc/ipa/ca.crt \
   /var/lib/ipa/certs/httpd.crt \
   /var/kerberos/krb5kdc/kdc.crt \
-  /etc/dirsrv/slapd-IPA-EXAMPLE-COM/Server-Cert.pem; do
+  /etc/dirsrv/slapd-EXAMPLE-COM/Server-Cert.pem; do
   [ -f "$cert" ] && echo "=== $cert ===" && \
     openssl x509 -noout -enddate -in "$cert" 2>/dev/null
 done
@@ -414,8 +414,8 @@ ipa crlgen-manage status
 ### 6.4 IPA RA Agent Certificate
 
 ```bash
-# Check IPA RA cert
-getcert list -d /etc/httpd/alias -n ipaCert
+# Check IPA RA cert (PEM file on RHEL 10 — the old /etc/httpd/alias NSS DB is gone)
+getcert list -f /var/lib/ipa/ra-agent.pem
 
 # Verify RA cert is trusted by Dogtag
 openssl verify -CAfile /etc/ipa/ca.crt /var/lib/ipa/ra-agent.pem
@@ -424,12 +424,12 @@ openssl verify -CAfile /etc/ipa/ca.crt /var/lib/ipa/ra-agent.pem
 ### 6.5 NSS Database Issues
 
 ```bash
-# List certs in NSS db
-certutil -L -d /etc/dirsrv/slapd-IPA-EXAMPLE-COM/
-certutil -L -d /etc/httpd/alias/
+# List certs in NSS db (389-DS still uses NSS; httpd uses PEM on RHEL 10)
+certutil -L -d /etc/dirsrv/slapd-EXAMPLE-COM/
+openssl x509 -in /var/lib/ipa/certs/httpd.crt -noout -subject -enddate
 
 # Verify cert chain
-certutil -V -u V -d /etc/dirsrv/slapd-IPA-EXAMPLE-COM/ -n "Server-Cert"
+certutil -V -u V -d /etc/dirsrv/slapd-EXAMPLE-COM/ -n "Server-Cert"
 
 # Check OCSP/CRL config
 ipa config-show | grep -i crl
@@ -477,13 +477,13 @@ dig example.com DNSKEY
 dig example.com RRSIG
 
 # DNSSEC status
-ipa dnssec-show example.com
+ipa dnszone-show example.com | grep -i dnssec   # or: ipa dnszone-show example.com --all
 
-# Force zone re-sign
+# Enable zone signing (no-op if already signed — see Module 06 ⚠️ before toggling)
 ipa dnszone-mod example.com --dnssec=TRUE
 
-# Key status
-ipa dnskey-find --zone=example.com
+# Key status (keys are managed by OpenDNSSEC, not an ipa command)
+sudo ods-enforcer key list --zone=example.com --verbose
 ```
 
 ### 7.3 Named / bind-dyndb-ldap
@@ -522,8 +522,8 @@ ipa dnsrecord-find example.com
 # Check specific record
 ipa dnsrecord-show example.com ipa
 
-# Validate DNS from IPA perspective
-ipa dns-resolve ipa1.example.com
+# Validate DNS resolution against the IPA DNS server
+dig @192.168.1.10 ipa1.example.com +short
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -631,7 +631,7 @@ systemctl start sssd
 
 ```bash
 # List all replicas (modern API)
-ipa topologysegment-find dc=ipa,dc=example,dc=com
+ipa topologysegment-find domain
 ipa topologysuffix-find
 
 # Legacy low-level tools (still functional, but prefer topology API above):
@@ -655,11 +655,11 @@ ipa-csreplica-manage status ipa2.example.com
 
 ```bash
 # Replication errors
-journalctl -u dirsrv@IPA-EXAMPLE-COM --since "1 hour ago" | \
+journalctl -u dirsrv@EXAMPLE-COM --since "1 hour ago" | \
   grep -iE 'repl|agmt|nsds5|error' | head -40
 
 # Check replication agreement state via LDAP
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "cn=config" \
   "(objectClass=nsds5ReplicationAgreement)" \
@@ -673,13 +673,13 @@ ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
 
 ```bash
 # Check for replication conflicts (tombstones)
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "dc=example,dc=com" \
   "(nsds5ReplConflict=*)" dn nsds5ReplConflict 2>/dev/null
 
 # Count conflict entries
-ldapsearch -H ldapi://%2Frun%2Fslapd-IPA-EXAMPLE-COM.socket \
+ldapsearch -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket \
   -Y EXTERNAL \
   -b "dc=example,dc=com" \
   "(nsds5ReplConflict=*)" dn 2>/dev/null | grep "^dn:" | wc -l
@@ -703,13 +703,14 @@ ipa-csreplica-manage re-initialize --from=ipa1.example.com
 
 ```bash
 # List topology segments
-ipa topologysegment-find dc=example,dc=com
+ipa topologysegment-find domain
 
 # Check topology suffix
 ipa topologysuffix-find
 
-# Verify connectivity
-ipa topologysegment-verify dc=example,dc=com ipa-to-ipa2
+# Verify the suffix topology is connected (per suffix name)
+ipa topologysuffix-verify domain
+ipa topologysuffix-verify ca
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -723,13 +724,13 @@ ipa topologysegment-verify dc=example,dc=com ipa-to-ipa2
 ```bash
 # List trusts
 ipa trust-find
-ipa trust-show ad.corp
+ipa trust-show ad.example.com
 
 # Verify trust
-ipa trust-fetch-domains ad.corp
+ipa trust-fetch-domains ad.example.com
 
 # Test with wbinfo
-wbinfo --ping-dc -d ad.corp
+wbinfo --ping-dc -d ad.example.com
 wbinfo -u          # list AD users (use with care in large environments)
 wbinfo --online-status
 
@@ -742,26 +743,26 @@ systemctl status winbind --no-pager -l
 ```bash
 # Check AD trust domain in SSSD
 sssctl domain-list
-sssctl domain-status ad.corp
+sssctl domain-status ad.example.com
 
 # Look up AD user
-id jdoe@ad.corp
-getent passwd jdoe@ad.corp
+id jdoe@ad.example.com
+getent passwd jdoe@ad.example.com
 
 # SID lookup
-sss_cache -u jdoe@ad.corp
+sss_cache -u jdoe@ad.example.com
 wbinfo --sid-to-uid=S-1-5-21-...
-wbinfo --uid-to-sid=$(id -u jdoe@ad.corp)
+wbinfo --uid-to-sid=$(id -u jdoe@ad.example.com)
 ```
 
 ### 10.3 SSSD Log for AD Trust
 
 ```bash
 # Watch subdomain log
-tail -f /var/log/sssd/sssd_ad.corp.log
+tail -f /var/log/sssd/sssd_ad.example.com.log
 
 # Check for SID/PAC errors
-grep -iE 'sid|pac|trust|krb5' /var/log/sssd/sssd_ad.corp.log | tail -30
+grep -iE 'sid|pac|trust|krb5' /var/log/sssd/sssd_ad.example.com.log | tail -30
 ```
 
 ### 10.4 DNS Cross-Realm
@@ -771,11 +772,11 @@ grep -iE 'sid|pac|trust|krb5' /var/log/sssd/sssd_ad.corp.log | tail -30
 ipa dnsforwardzone-find
 
 # Verify cross-realm SRV resolution
-dig _kerberos._tcp.ad.corp SRV
-dig _ldap._tcp.ad.corp SRV
+dig _kerberos._tcp.ad.example.com SRV
+dig _ldap._tcp.ad.example.com SRV
 
 # Test cross-realm Kerberos
-kinit jdoe@AD.CORP
+kinit jdoe@AD.EXAMPLE.COM
 kvno host/ipa1.example.com@EXAMPLE.COM
 ```
 
@@ -783,8 +784,8 @@ kvno host/ipa1.example.com@EXAMPLE.COM
 
 ```bash
 # Remove and re-add trust
-ipa trust-del ad.corp
-ipa trust-add --type=ad ad.corp --admin=Administrator --password
+ipa trust-del ad.example.com
+ipa trust-add --type=ad ad.example.com --admin=Administrator --password
 
 # Restart SSSD after trust changes
 systemctl restart sssd
@@ -891,8 +892,8 @@ kadmin.local -q "getprinc admin" | grep -i enc
 # Verify no weak keys in keytab
 klist -eK /etc/krb5.keytab 2>/dev/null | grep -iE 'rc4|des|arcfour'
 
-# Check NSS FIPS mode
-certutil -d /etc/httpd/alias/ -K
+# Check NSS FIPS mode (389-DS NSS database)
+modutil -dbdir /etc/dirsrv/slapd-EXAMPLE-COM/ -chkfips true
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -905,14 +906,15 @@ certutil -d /etc/httpd/alias/ -K
 
 ```bash
 # Reset Directory Manager password (must be on the server, as root)
-systemctl stop dirsrv@IPA-EXAMPLE-COM
-ns-slapd -D /etc/dirsrv/slapd-IPA-EXAMPLE-COM -w /etc/dirsrv/slapd-IPA-EXAMPLE-COM/dse.ldif &
+# ⚠️ Back up dse.ldif first (cp /etc/dirsrv/slapd-EXAMPLE-COM/dse.ldif{,.bak}) — a bad edit can break the instance
+systemctl stop dirsrv@EXAMPLE-COM
+ns-slapd -D /etc/dirsrv/slapd-EXAMPLE-COM -w /etc/dirsrv/slapd-EXAMPLE-COM/dse.ldif &
 sleep 3
 ldappasswd -H ldap://localhost:389 -x \
   -D "cn=Directory Manager" -w current_pass \
   -s "NewPassword123!"
 kill %1
-systemctl start dirsrv@IPA-EXAMPLE-COM
+systemctl start dirsrv@EXAMPLE-COM
 ```
 
 ### 13.2 Admin Kerberos Principal Locked/Missing
@@ -968,6 +970,7 @@ ipa user-find --sizelimit=3
 
 ```bash
 # Force-remove replica from topology
+# ⚠️ Force-removal can orphan RUVs/topology segments — follow up with clean-ruv (§9) to clear stale RUVs
 ipa server-del ipa2.example.com --force
 
 # Clean up replication agreements
@@ -990,40 +993,40 @@ ipa-replica-manage dnarange-set ipa1.example.com 1000-1999
 
 ```mermaid
 flowchart TD
-    START([Problem Reported]) --> HC[Run ipa-healthcheck\n--failures-only]
+    START([Problem Reported]) --> HC["Run ipa-healthcheck<br/>--failures-only"]
     HC --> HC_CLEAN{Any failures?}
 
     HC_CLEAN -- No --> IPACTL[Run ipactl status]
     HC_CLEAN -- Yes --> TRIAGE[Triage by failure source]
 
-    TRIAGE --> CERT_SRC[ipahealthcheck.ipa.certs\n→ Section 6]
-    TRIAGE --> REPL_SRC[ipahealthcheck.ds.replication\n→ Section 9]
-    TRIAGE --> DNS_SRC[ipahealthcheck.ipa.dns\n→ Section 7]
-    TRIAGE --> SYS_SRC[System / service\n→ Section 2]
+    TRIAGE --> CERT_SRC["ipahealthcheck.ipa.certs<br/>→ Section 6"]
+    TRIAGE --> REPL_SRC["ipahealthcheck.ds.replication<br/>→ Section 9"]
+    TRIAGE --> DNS_SRC["ipahealthcheck.ipa.dns<br/>→ Section 7"]
+    TRIAGE --> SYS_SRC["System / service<br/>→ Section 2"]
 
     IPACTL --> SVCDOWN{Any service down?}
     SVCDOWN -- No --> KRB[Try: kinit admin]
-    SVCDOWN -- Yes --> SVCRESTART[systemctl restart <service>\n→ check journalctl]
+    SVCDOWN -- Yes --> SVCRESTART["systemctl restart <service><br/>→ check journalctl"]
 
     KRB --> KRB_OK{Ticket obtained?}
-    KRB_OK -- Yes --> LDAP[Test LDAP query\n→ Section 5]
-    KRB_OK -- No --> KRB_DIAG[Kerberos diagnostics\n→ Section 4]
+    KRB_OK -- Yes --> LDAP["Test LDAP query<br/>→ Section 5"]
+    KRB_OK -- No --> KRB_DIAG["Kerberos diagnostics<br/>→ Section 4"]
 
     LDAP --> LDAP_OK{Query succeeds?}
-    LDAP_OK -- Yes --> DNS[Test DNS SRV records\n→ Section 7]
-    LDAP_OK -- No --> DS_LOG[Check DS error log\n→ journalctl dirsrv]
+    LDAP_OK -- Yes --> DNS["Test DNS SRV records<br/>→ Section 7"]
+    LDAP_OK -- No --> DS_LOG["Check DS error log<br/>→ journalctl dirsrv"]
 
     DNS --> DNS_OK{SRV records resolve?}
-    DNS_OK -- Yes --> SSSD[Check SSSD on client\n→ Section 8]
-    DNS_OK -- No --> NAMED[Restart named\nrndc reload\nrndc flush]
+    DNS_OK -- Yes --> SSSD["Check SSSD on client<br/>→ Section 8"]
+    DNS_OK -- No --> NAMED["Restart named<br/>rndc reload<br/>rndc flush"]
 
     SSSD --> SSSD_OK{getent passwd works?}
-    SSSD_OK -- Yes --> TRUST[AD Trust issue?\n→ Section 10]
-    SSSD_OK -- No --> SSSD_DBG[sssctl user-checks\ndebug_level=9\n→ Section 8]
+    SSSD_OK -- Yes --> TRUST["AD Trust issue?<br/>→ Section 10"]
+    SSSD_OK -- No --> SSSD_DBG["sssctl user-checks<br/>debug_level=9<br/>→ Section 8"]
 
     TRUST --> TRUST_OK{AD users resolve?}
     TRUST_OK -- Yes --> OK([Issue Resolved ✓])
-    TRUST_OK -- No --> TRUST_DIAG[wbinfo --ping-dc\nipa trust-find\n→ Section 10]
+    TRUST_OK -- No --> TRUST_DIAG["wbinfo --ping-dc<br/>ipa trust-find<br/>→ Section 10"]
 ```
 
 ---

@@ -57,13 +57,13 @@ using **which services** (SSH, FTP, login, sudo, etc.).
 ```mermaid
 graph TD
     subgraph "HBAC Rule: allow-dev-ssh"
-        U[Users\njdoe\nalice\ndevelopers group] --> R[HBAC Rule]
-        H[Hosts\ndev01.example.com\nwebservers hostgroup] --> R
-        S[Services\nsshd\nlogin] --> R
+        U["Users<br/>jdoe<br/>alice<br/>developers group"] --> R[HBAC Rule]
+        H["Hosts<br/>dev01.example.com<br/>webservers hostgroup"] --> R
+        S["Services<br/>sshd<br/>login"] --> R
     end
     R -->|evaluates to| A{Allowed?}
     A -->|Yes| ALLOW[Login permitted]
-    A -->|No| DENY[Login denied\npam_sss returns error]
+    A -->|No| DENY["Login denied<br/>pam_sss returns error"]
 ```
 
 A rule grants access when **all three conditions match**:
@@ -167,27 +167,17 @@ ipa hbacrule-add-service allow-dev-webservers \
 
 ```mermaid
 flowchart TD
-    A[User jdoe attempts SSH\nto web01.example.com] --> B[SSSD fetches HBAC rules\nfor web01 from LDAP]
-    B --> C[Evaluate each rule in sequence]
-    C --> D{Rule 1: allow_all\nEnabled?}
-    D -->|Yes| E{User matches?}
-    E -->|Yes - usercat=all| F{Host matches?}
-    F -->|Yes - hostcat=all| G{Service matches?}
-    G -->|Yes - srvccat=all| ALLOW[✅ Access granted\nlogin proceeds]
-    D -->|No - disabled| H{Rule 2: allow-dev-webservers\nEnabled?}
-    H -->|Yes| I{User in\ndevelopers group?}
-    I -->|No - jdoe not in devs| J{Rule 3...}
-    I -->|Yes| K{Host in\nwebservers group?}
-    K -->|Yes| L{Service = sshd?}
-    L -->|Yes| ALLOW
-    L -->|No| J
-    J -->|No more rules| DENY[❌ Access denied\npam_sss returns AUTH_ERR]
+    A["User jdoe attempts SSH<br/>to web01.example.com"] --> B["SSSD gathers ALL enabled HBAC<br/>rules applicable to web01 from LDAP"]
+    B --> C{"Does ANY enabled rule match<br/>user AND host AND service?<br/>(no ordering, no first-match)"}
+    C -->|Yes - at least one rule matches all three| ALLOW["✅ Access granted<br/>login proceeds"]
+    C -->|No rule matches| DENY["❌ Access denied (default deny)<br/>pam_sss returns AUTH_ERR"]
 ```
 
 > 📝 HBAC uses **any-match-allow** logic. SSSD evaluates **all** applicable rules
-> and grants access if **any single rule** matches all four conditions (user, host,
-> service, time). Rule ordering is not guaranteed — there is no first-match
-> short-circuit. If no rule grants access, the default is **deny**.
+> and grants access if **any single rule** matches all three conditions (user, host,
+> service). FreeIPA HBAC has no time dimension. Rule ordering is not guaranteed —
+> there is no first-match short-circuit. If no rule grants access, the default is
+> **deny**.
 
 ### 1.6 Testing HBAC Rules
 
@@ -228,13 +218,13 @@ which hosts.
 ```mermaid
 graph TD
     subgraph "Sudo Rule: ops-restart-services"
-        U2[Sudo Users\nbwilson\nops group] --> SR[Sudo Rule]
-        H2[Sudo Hosts\nproduction hostgroup] --> SR
-        CMD[Sudo Commands\n/usr/bin/systemctl restart *\n/usr/bin/systemctl status *] --> SR
-        OPT[Sudo Options\n!authenticate\nrequiretty=false] --> SR
-        RUN[RunAs User\nroot] --> SR
+        U2["Sudo Users<br/>bwilson<br/>ops group"] --> SR[Sudo Rule]
+        H2["Sudo Hosts<br/>production hostgroup"] --> SR
+        CMD["Sudo Commands<br/>/usr/bin/systemctl restart *<br/>/usr/bin/systemctl status *"] --> SR
+        OPT["Sudo Options<br/>!authenticate<br/>requiretty=false"] --> SR
+        RUN["RunAs User<br/>root"] --> SR
     end
-    SR -->|sudo on production host| EXEC[Execute systemctl\nas root\nno password required]
+    SR -->|sudo on production host| EXEC["Execute systemctl<br/>as root<br/>no password required"]
 ```
 
 ### 2.2 Creating Sudo Rules
@@ -254,7 +244,12 @@ ipa sudorule-add-host ops-restart-services \
   --hosts=web01.example.com \
   --hostgroups=production
 
-# Add allowed commands
+# Add allowed commands.
+# NOTE: the sudocmd and sudocmdgroup objects must exist FIRST — create them as
+# shown in §2.3 before referencing them here.
+ipa sudocmd-add "/usr/bin/systemctl restart httpd"
+ipa sudocmdgroup-add service-commands --desc="Service management commands"
+
 ipa sudorule-add-allow-command ops-restart-services \
   --sudocmds="/usr/bin/systemctl restart httpd" \
   --sudocmdgroups=service-commands
@@ -291,7 +286,7 @@ ipa sudorule-add-allow-command allow-devs-all-hosts --sudocmdgroups=dev-commands
 ipa sudocmd-add "/usr/bin/systemctl restart httpd"
 ipa sudocmd-add "/usr/bin/systemctl restart nginx"
 ipa sudocmd-add "/usr/bin/systemctl status *"
-ipa sudocmd-add "/usr/bin/journalctl *"
+ipa sudocmd-add "/usr/bin/journalctl -u httpd"
 
 # Deny list (explicitly deny a command within a broader allow)
 ipa sudocmd-add "/usr/bin/passwd root"
@@ -303,7 +298,7 @@ ipa sudocmdgroup-add service-commands \
 ipa sudocmdgroup-add-member service-commands \
   --sudocmds="/usr/bin/systemctl restart httpd" \
   --sudocmds="/usr/bin/systemctl restart nginx" \
-  --sudocmds="/usr/bin/journalctl *"
+  --sudocmds="/usr/bin/journalctl -u httpd"
 
 # Add deny commands to the rule
 ipa sudorule-add-deny-command ops-restart-services \
@@ -326,11 +321,13 @@ Common sudo options you can set on IPA sudo rules:
 
 ```bash
 # Add NOPASSWD to a rule
-ipa sudorule-add-option allow-devs --sudooption="!authenticate"
+ipa sudorule-add-option allow-devs-all-hosts --sudooption="!authenticate"
 
 # Add multiple options
-ipa sudorule-add-option allow-devs --sudooption="!noexec"
-ipa sudorule-add-option allow-devs --sudooption="!requiretty"
+# Use "noexec" (no leading !) to PREVENT spawned commands from launching
+# subshells/other programs. "!noexec" would DISABLE that protection.
+ipa sudorule-add-option allow-devs-all-hosts --sudooption="noexec"
+ipa sudorule-add-option allow-devs-all-hosts --sudooption="!requiretty"
 ```
 
 ### 2.5 Sudo Rule Lookup via SSSD
@@ -343,19 +340,18 @@ sequenceDiagram
     participant CACHE as SSSD cache
     participant LDAP as 389-DS
 
+    Note over SSSD,LDAP: SSSD's sudo responder fetches/caches sudo<br/>rules from IPA LDAP independently of any<br/>command (smart/full refresh on a timer)
+    SSSD->>LDAP: ldapsearch cn=sudorules (background refresh)
+    LDAP-->>SSSD: sudo rules
+    SSSD->>CACHE: Store rules in cache
+
     U->>SUDO: sudo systemctl restart httpd
-    SUDO->>SSSD: pam_authenticate (sudo PAM service)
-    SSSD->>CACHE: Check sudo rules cache
-    Note over CACHE: Cache valid (smart_refresh)?
-    CACHE-->>SSSD: ops-restart-services rule
-
-    alt Cache stale
-        SSSD->>LDAP: ldapsearch cn=sudorules
-        LDAP-->>SSSD: Updated rules
-        SSSD->>CACHE: Update cache
-    end
-
+    SUDO->>SSSD: query sudo rules (NSS sudo responder)
+    SSSD->>CACHE: Look up cached rules for bwilson@web01
+    CACHE-->>SSSD: ops-restart-services rule (matches)
     SSSD-->>SUDO: bwilson can run systemctl on this host
+
+    Note over SUDO: Only if the matched rule requires a<br/>password (no !authenticate option) does<br/>sudo invoke PAM auth for bwilson
     SUDO-->>U: Execute command as root
 ```
 

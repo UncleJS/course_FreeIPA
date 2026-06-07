@@ -16,6 +16,7 @@
 - [4. Kerberos Errors](#4-kerberos-errors)
 - [5. LDAP and Directory Server Issues](#5-ldap-and-directory-server-issues)
 - [6. Certificate and PKI Problems](#6-certificate-and-pki-problems)
+- [6.6 Recovering from Already-Expired System Certificates (ipa-cert-fix)](#66-recovering-from-already-expired-system-certificates-ipa-cert-fix)
 - [7. DNS Failures](#7-dns-failures)
 - [8. Client Enrollment and SSSD Issues](#8-client-enrollment-and-sssd-issues)
 - [9. Replication Problems](#9-replication-problems)
@@ -131,15 +132,15 @@ df -h / /var /tmp
 ```mermaid
 graph TD
     subgraph "Log Locations"
-        L1["/var/log/dirsrv/slapd-REALM/\n├── access\n├── errors\n└── audit"]
-        L2["/var/log/httpd/\n├── access_log\n├── error_log\n└── ssl_error_log"]
+        L1["/var/log/dirsrv/slapd-REALM/<br/>├── access<br/>├── errors<br/>└── audit"]
+        L2["/var/log/httpd/<br/>├── access_log<br/>├── error_log<br/>└── ssl_error_log"]
         L3["/var/log/krb5kdc.log"]
         L4["/var/log/kadmind.log"]
-        L5["/var/log/pki/pki-tomcat/ca/\n├── system\n├── transactions\n└── audit"]
-        L6["/var/log/sssd/\n├── sssd.log\n├── sssd_ipa.REALM.log\n└── sssd_pam.log"]
-        L7["/var/log/named/\n└── named.log (if configured)"]
+        L5["/var/log/pki/pki-tomcat/ca/<br/>├── system<br/>├── transactions<br/>└── audit"]
+        L6["/var/log/sssd/<br/>├── sssd.log<br/>├── sssd_ipa.REALM.log<br/>└── sssd_pam.log"]
+        L7["/var/log/named/<br/>└── named.log (if configured)"]
         L8["/var/log/audit/audit.log"]
-        L9["systemd journal\n(journalctl)"]
+        L9["systemd journal<br/>(journalctl)"]
     end
 ```
 
@@ -149,7 +150,7 @@ graph TD
 |---------|---------|
 | `sudo ipa-healthcheck --all` | Comprehensive health scan |
 | `sudo ipactl status` | All IPA service statuses |
-| `ipa topologysegment-find dc=...` | Replication topology and agreement status |
+| `ipa topologysegment-find domain` | Replication topology and agreement status |
 | `sudo getcert list` | All certmonger-tracked certs |
 | `kinit admin && klist` | Kerberos connectivity test |
 | `sudo wbinfo --ping-dc` | AD trust Netlogon test |
@@ -200,7 +201,7 @@ sudo ipactl status
 sudo ipactl start
 
 # If start fails, check each service individually
-sudo systemctl status dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl status dirsrv@EXAMPLE-COM.service
 sudo systemctl status krb5kdc.service
 sudo systemctl status kadmin.service
 sudo systemctl status httpd.service
@@ -215,13 +216,13 @@ sudo systemctl status sssd.service
 flowchart TD
     A[ipactl start fails] --> B[Check dirsrv first]
     B --> B1{dirsrv starts?}
-    B1 -- No --> B2["Check /var/log/dirsrv/slapd-*/errors\nCommon: disk full, corrupted DB, wrong port"]
+    B1 -- No --> B2["Check /var/log/dirsrv/slapd-*/errors<br/>Common: disk full, corrupted DB, wrong port"]
     B1 -- Yes --> C{krb5kdc starts?}
-    C -- No --> C1["Check /var/log/krb5kdc.log\nCommon: stash file missing, DB locked"]
+    C -- No --> C1["Check /var/log/krb5kdc.log<br/>Common: stash file missing, DB locked"]
     C -- Yes --> D{httpd starts?}
-    D -- No --> D1["Check /var/log/httpd/error_log\nCommon: cert expired, port conflict"]
+    D -- No --> D1["Check /var/log/httpd/error_log<br/>Common: cert expired, port conflict"]
     D -- Yes --> E{pki-tomcatd starts?}
-    E -- No --> E1["Check /var/log/pki/pki-tomcat/ca/system\nCommon: cert expired, port 8080/8443 in use"]
+    E -- No --> E1["Check /var/log/pki/pki-tomcat/ca/system<br/>Common: cert expired, port 8080/8443 in use"]
     E -- Yes --> F[All core services up ✓]
     style F fill:#1a6b3c,color:#fff
 ```
@@ -230,12 +231,14 @@ flowchart TD
 
 ```bash
 # Error: "Failed to start dirsrv" / DB corruption
-sudo db2ldif -n userRoot -a /tmp/userroot-export.ldif \
-    -s "dc=ipa,dc=example,dc=com"
-# If db2ldif fails: restore from backup
+# Export the backend with the modern dsctl wrapper (instance: EXAMPLE-COM):
+sudo dsctl EXAMPLE-COM db2ldif userroot /tmp/userroot-export.ldif
+# If the export fails: restore from backup
 
-# Error: KDC stash file missing
-sudo kdb5_util stash -P 'MasterKey'
+# 📝 KDC master key: IPA stores and manages the Kerberos master key inside the
+# LDAP backend (the ipa-kdb plugin), not in a kdb5_util stash file. Do not run
+# `kdb5_util stash`/`create` against an IPA KDC — master-key handling is managed
+# internally by IPA and is not a manual troubleshooting step.
 
 # Error: httpd port 443 already in use
 # Step 1: identify the owning process/service
@@ -303,10 +306,10 @@ flowchart TD
     B --> PA[Preauthentication failed]
     B --> NC[Cannot contact KDC]
 
-    CK --> CK1[chronyc makestep\ntimedatectl status]
-    NF --> NF1[ipa user-show USERNAME\nCheck realm: kinit user@REALM]
-    PA --> PA1[ipa passwd USERNAME\nCheck lockout: ipa user-show]
-    NC --> NC1[dig SRV _kerberos._tcp.REALM\nsystemctl status krb5kdc\nping ipa1.example.com]
+    CK --> CK1["chronyc makestep<br/>timedatectl status"]
+    NF --> NF1["ipa user-show USERNAME<br/>Check realm: kinit user@REALM"]
+    PA --> PA1["ipa passwd USERNAME<br/>Check lockout: ipa user-show"]
+    NC --> NC1["dig SRV _kerberos._tcp.REALM<br/>systemctl status krb5kdc<br/>ping ipa1.example.com"]
 ```
 
 ### 4.3 KDC Log Analysis
@@ -325,8 +328,11 @@ sudo tail -f /var/log/krb5kdc.log
 # Clock skew:
 # "AS_REQ ... CLOCK_SKEW"
 
-# Account locked:
+# Principal does not exist (wrong username/realm):
 # "AS_REQ ... CLIENT_NOT_FOUND"
+
+# Account locked/revoked (lockout shows here, NOT as CLIENT_NOT_FOUND):
+# "AS_REQ ... PREAUTH_FAILED" with KDC_ERR_CLIENT_REVOKED
 
 # Search for all failures in the last hour
 sudo grep -E "FAILED|ERROR|PREAUTH_FAILED|CLOCK_SKEW" \
@@ -337,26 +343,26 @@ sudo grep -E "FAILED|ERROR|PREAUTH_FAILED|CLOCK_SKEW" \
 
 ```bash
 # Verify a service principal exists
-ipa service-show host/client1.example.com
+ipa service-show host/client01.example.com
 
 # Retrieve/create keytab for a service
 ipa-getkeytab -s ipa1.example.com \
-    -p host/client1.example.com \
-    -k /tmp/client1.keytab
+    -p host/client01.example.com \
+    -k /tmp/client01.keytab
 
 # Test a keytab
-kinit -kt /tmp/client1.keytab host/client1.example.com
+kinit -kt /tmp/client01.keytab host/client01.example.com
 klist
 
 # Check keytab contents
-klist -kt /tmp/client1.keytab
+klist -kt /tmp/client01.keytab
 
 # Verify host keytab on client
 sudo klist -kt /etc/krb5.keytab
 
 # Re-create missing host keytab (must run on IPA server as admin)
 ipa-getkeytab -s ipa1.example.com \
-    -p host/client1.example.com \
+    -p host/client01.example.com \
     -k /etc/krb5.keytab
 ```
 
@@ -371,19 +377,19 @@ ipa-getkeytab -s ipa1.example.com \
 ```bash
 # Test plain LDAP
 ldapsearch -x -H ldap://ipa1.example.com \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=admin)" uid
 
 # Test LDAPS
 ldapsearch -x -H ldaps://ipa1.example.com \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=admin)" uid
 
 # Test with GSSAPI (Kerberos)
 kinit admin
 ldapsearch -H ldap://ipa1.example.com \
     -Y GSSAPI \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=admin)" uid
 ```
 
@@ -403,39 +409,38 @@ ldapsearch -H ldap://ipa1.example.com \
 
 ```bash
 # Tail the error log
-sudo tail -f /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors
+sudo tail -f /var/log/dirsrv/slapd-EXAMPLE-COM/errors
 
 # Search for critical errors
 sudo grep -iE "CRIT|fatal|error|failed" \
-    /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors | tail -30
+    /var/log/dirsrv/slapd-EXAMPLE-COM/errors | tail -30
 
 # Check for disk-full errors
 sudo grep -i "no space\|disk full\|ENOSPC" \
-    /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors
+    /var/log/dirsrv/slapd-EXAMPLE-COM/errors
 
 # Check replication errors specifically
 sudo grep -i "repl\|replicate\|Consumer" \
-    /var/log/dirsrv/slapd-IPA-EXAMPLE-COM/errors | tail -20
+    /var/log/dirsrv/slapd-EXAMPLE-COM/errors | tail -20
 ```
 
 ### 5.4 LDAP Database Recovery
 
 ```bash
 # Export LDAP data before any recovery attempt
-sudo systemctl stop dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl stop dirsrv@EXAMPLE-COM.service
 
-# Export to LDIF
-sudo db2ldif -n userRoot \
-    -a /var/lib/ipa/backup/emergency-$(date +%Y%m%d).ldif \
-    -s "dc=ipa,dc=example,dc=com"
+# Export to LDIF with the modern dsctl wrapper (instance: EXAMPLE-COM)
+sudo dsctl EXAMPLE-COM db2ldif userroot \
+    /var/lib/ipa/backup/emergency-$(date +%Y%m%d).ldif
 
-# Run database consistency check
-sudo db2index -n userRoot
+# Rebuild backend indexes
+sudo dsctl EXAMPLE-COM db2index userroot
 
 # If corruption detected — restore from backup
 sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 
-sudo systemctl start dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl start dirsrv@EXAMPLE-COM.service
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -454,7 +459,7 @@ sudo getcert list
 sudo getcert list | grep -B5 -A2 -v "status: MONITORING"
 
 # Check specific cert expiry dates
-for f in /var/lib/ipa/certs/*.crt /etc/httpd/alias/*.crt 2>/dev/null; do
+for f in /var/lib/ipa/certs/*.crt; do
     echo "=== $f ==="
     openssl x509 -in "$f" -noout -subject -dates 2>/dev/null
 done
@@ -547,6 +552,57 @@ sudo grep "crl.MasterCRL.enable=true" \
     /etc/pki/pki-tomcat/ca/CS.cfg
 ```
 
+### 6.6 Recovering from Already-Expired System Certificates (ipa-cert-fix)
+
+When IPA's own system certificates (the CA signing cert, OCSP, subsystem,
+audit, or the Apache/389-DS server certs) have **already expired**,
+`getcert resubmit` dead-ends: certmonger cannot renew because the CA used to
+sign the renewal is itself expired. `ipa-cert-fix` is the supported recovery
+tool for this state — it reissues the expired system certificates even while
+the CA is down.
+
+> ⚠️ **Take a full backup first.** Run `sudo ipa-backup` (offline:
+> `sudo ipa-backup --data --online=false` if services will not start) before
+> running `ipa-cert-fix`. The tool rewrites system certificates and is not
+> reversible without a restore.
+
+```bash
+# Run ON THE CA RENEWAL MASTER (the server that owns shared cert renewal).
+sudo ipa-cert-fix
+
+# Expected output (abridged) — it lists the expired certs it will fix and prompts:
+#   The following certificates will be renewed:
+#     Dogtag sslserver certificate:
+#       Subject: CN=ipa1.example.com,O=EXAMPLE.COM
+#       Expired: 2026-01-15 ...
+#     ... (caSigningCert, ocspSigningCert, subsystemCert, auditSigningCert,
+#          IPA RA, Apache, 389-DS, KDC) ...
+#   Enter "yes" to proceed: yes
+#   ... Beckoning certmonger to renew ...
+#   The ipa-cert-fix command was successful
+```
+
+```bash
+# After the renewal master is fixed, on EACH OTHER CA REPLICA refresh the
+# shared (CA subsystem) certificates that were just reissued:
+sudo getcert list | grep -E 'Request ID|subject'   # find the shared-cert IDs
+sudo getcert resubmit -i <request-id>               # for each shared cert
+
+# Verify all tracked certs are healthy and have future expiry dates:
+sudo getcert list | grep -E 'status|expires'
+# Want: status: MONITORING and expires in the future for every entry
+
+# Final sanity check across the deployment:
+sudo ipa-healthcheck --source ipahealthcheck.ipa.certs
+```
+
+> 📝 **Legacy clock-rollback technique.** Before `ipa-cert-fix` existed, admins
+> recovered by setting the system clock back to a time *before* the certs
+> expired, so services would start, then renewing certs and restoring the
+> correct time. ⚠️ `ipa-cert-fix` supersedes this — prefer it. Manipulating the
+> clock breaks Kerberos (clock-skew failures) for as long as the clock is wrong,
+> and is error-prone across replicas.
+
 [↑ Back to TOC](#table-of-contents)
 
 ---
@@ -590,15 +646,20 @@ dig -x 192.168.1.10 @192.168.1.10
 ```bash
 # Check if 389-DS is accessible to named
 sudo -u named ldapsearch -x -H ldap://localhost \
-    -b "cn=dns,dc=ipa,dc=example,dc=com" \
+    -b "cn=dns,dc=example,dc=com" \
     "(objectClass=idnsZone)" idnsName | head -20
+# 📝 The -x above uses an anonymous bind. If anonymous binds were disabled per
+# Module 13 (nsslapd-allow-anonymous-access: off), drop -x and authenticate with
+# GSSAPI instead, e.g.:
+#   kinit admin && ldapsearch -Y GSSAPI -H ldap://localhost \
+#       -b "cn=dns,dc=example,dc=com" "(objectClass=idnsZone)" idnsName | head -20
 
 # Check named LDAP config
 sudo cat /etc/named/ipa-ext.conf
 
 # Error: "LDAP error: Can't contact LDAP server"
 # Fix: ensure 389-DS is running before named
-sudo systemctl status dirsrv@IPA-EXAMPLE-COM.service
+sudo systemctl status dirsrv@EXAMPLE-COM.service
 
 # Restart named after 389-DS is confirmed running
 sudo systemctl restart named
@@ -607,17 +668,17 @@ sudo systemctl restart named
 ### 7.4 DNSSEC Troubleshooting
 
 ```bash
-# Check DNSSEC signing status
-ipa dnszone-show ipa1.example.com | grep -i "DNSSEC\|key"
+# Check DNSSEC signing status (argument is the ZONE, not a host)
+ipa dnszone-show example.com | grep -i "DNSSEC\|key"
 
-# Check DNSSEC keys exist
-ipa dnskey-find ipa1.example.com 2>/dev/null | head -5
+# Check DNSSEC keys exist (keys are managed by OpenDNSSEC, not an ipa command)
+sudo ods-enforcer key list --zone=example.com
 
 # Verify DNSSEC validation
 dig +dnssec ipa1.example.com @localhost | grep -E "RRSIG|AD flag"
 
 # Check key rollover status
-ipa dnsseckey-find ipa1.example.com 2>/dev/null
+sudo ods-enforcer key list --zone=example.com --verbose
 
 # OpenDNSSEC daemon
 sudo systemctl status ods-enforcerd ods-signerd
@@ -734,7 +795,7 @@ sudo tail -50 /var/log/secure | grep -E "sshd|pam_sss|pam_unix"
 # Test HBAC rule
 ipa hbactest \
     --user=jsmith \
-    --host=client1.example.com \
+    --host=client01.example.com \
     --service=sshd
 ```
 
@@ -778,7 +839,7 @@ sudo ldapsearch -x -H ldap://localhost \
 | `19 Replication error … Busy` | Peer busy | Wait and retry |
 | `81 … Can't contact LDAP server` | Network issue | Check 389-DS on peer |
 | `82 … Local error` | TLS/cert issue | Check cert validity on peer |
-| `32 … No such object` | Schema mismatch | Run `ipa-ldap-updater --all` |
+| `32 … No such object` | Suffix/entry missing on the consumer (often an uninitialized replica) | Usually fixed by re-initializing the replica (see §9.3) |
 | `-1 Fatal replication error` | Severe | Check errors log; may need re-init |
 
 ### 9.3 Re-initializing Replication
@@ -1091,13 +1152,13 @@ kinit admin
 ```bash
 # Test LDAP connectivity
 ldapsearch -x -H ldap://ipa1.example.com \
-    -b "dc=ipa,dc=example,dc=com" \
+    -b "dc=example,dc=com" \
     "(uid=admin)" uid 2>&1
 
 # Test with auth
 ldapsearch -x -H ldaps://ipa1.example.com \
-    -D "uid=admin,cn=users,cn=accounts,dc=ipa,dc=example,dc=com" \
-    -W -b "dc=ipa,dc=example,dc=com" \
+    -D "uid=admin,cn=users,cn=accounts,dc=example,dc=com" \
+    -W -b "dc=example,dc=com" \
     "(uid=admin)" uid 2>&1 | head -10
 ```
 
@@ -1153,7 +1214,7 @@ sudo ipa-healthcheck --all --output-type human 2>&1 | \
 # Target: 0 ERRORs, minimal WARNINGs
 
 # Confirm user login works
-ssh -v jsmith@client1.example.com 2>&1 | \
+ssh -v jsmith@client01.example.com 2>&1 | \
     grep -E "Authenticated|denied|Permission|GSSAPI"
 
 # Document findings

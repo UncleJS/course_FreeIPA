@@ -70,7 +70,8 @@ Kerberos principal attributes:
 | Home dir | `homeDirectory` | `/home/username` |
 | Kerberos principal | `krbPrincipalName` | `uid@REALM` |
 | Password | (krb5 key) | Stored as Kerberos keys, not plaintext |
-| Account expiry | `krbPasswordExpiration` | Set by password policy |
+| Account expiry | `krbPrincipalExpiration` | Whole account stops working after this date |
+| Password expiry | `krbPasswordExpiration` | When the password must be changed (set by password policy) |
 | Account disabled | `nsAccountLock` | `TRUE` = locked |
 
 ### 1.2 Creating Users
@@ -91,8 +92,14 @@ ipa user-add jdoe \
   --password   # prompts for initial password
 
 # Create user and set password non-interactively (CI/CD)
-echo "TempP@ss2026!" | ipa user-add jdoe \
+# --password prompts TWICE (set + verify), so feed the value twice via printf.
+# A single piped line fails the verification prompt.
+P='TempP@ss2026!'
+printf '%s\n%s\n' "$P" "$P" | ipa user-add jdoe \
   --first=John --last=Doe --password
+
+# Alternative: let IPA generate a random initial password (printed in output)
+ipa user-add jdoe --first=John --last=Doe --random
 ```
 
 > 📝 New users are forced to change their password on first login. This is
@@ -125,12 +132,12 @@ ipa passwd jdoe
 
 ```mermaid
 graph TD
-    A[Stage User\ncn=staged users] -->|ipa stageuser-activate| B[Active User\ncn=users,cn=accounts]
-    B -->|ipa user-disable| C[Disabled User\nnsAccountLock=TRUE]
+    A["Stage User<br/>cn=staged users"] -->|ipa stageuser-activate| B["Active User<br/>cn=users,cn=accounts"]
+    B -->|ipa user-disable| C["Disabled User<br/>nsAccountLock=TRUE"]
     C -->|ipa user-enable| B
-    B -->|ipa user-del| D[Preserved User\ncn=deleted users]
+    B -->|ipa user-del| D["Preserved User<br/>cn=deleted users"]
     D -->|ipa user-undel| B
-    D -->|ipa user-del --permanent| E[Permanently Deleted\ncannot restore]
+    D -->|ipa user-del --permanent| E["Permanently Deleted<br/>cannot restore"]
 
 
 ```
@@ -171,14 +178,14 @@ ipa user-del jdoe --permanent
 
 ### 2.1 Group Types
 
-IPA supports four group types:
+IPA supports three group types, plus a "protected" property on certain built-ins:
 
 | Type | Description | Use case |
 |------|-------------|---------|
 | **POSIX** | Has `gidNumber`, visible to OS | Linux group membership, file permissions |
 | **Non-POSIX** | No GID, LDAP-only | Email lists, policy grouping, AD trust |
 | **External** | Contains AD SIDs as members | AD trust group mapping |
-| **Special** | Built-in (`admins`, `ipausers`) | System groups, cannot be deleted |
+| **Protected/built-in** | A property of certain default groups (`admins`, `ipausers`), not a separate type — they are POSIX groups that cannot be deleted | System groups |
 
 ### 2.2 Creating and Managing Groups
 
@@ -249,13 +256,13 @@ assign group memberships for new users.
 
 ```mermaid
 flowchart TD
-    A[New user created\nipa user-add] --> B[IPA evaluates\nautomember rules]
-    B --> C{User attribute\nmatches any rule?}
+    A["New user created<br/>ipa user-add"] --> B["IPA evaluates<br/>automember rules"]
+    B --> C{"User attribute<br/>matches any rule?"}
     C -->|Rule: mail=.*@dev.example.com| D[Add to developers group]
     C -->|Rule: title=Manager| E[Add to managers group]
     C -->|Rule: dept=Engineering| F[Add to engineering group]
-    C -->|No match| G[Add to default group\nif configured]
-    D --> H[User created with\ngroup memberships]
+    C -->|No match| G["Add to default group<br/>if configured"]
+    D --> H["User created with<br/>group memberships"]
     E --> H
     F --> H
     G --> H
@@ -286,9 +293,11 @@ ipa automember-add-condition employees \
   --exclusive-regex='^contractor-'
 
 # Set a default group (catch-all for no match)
-ipa automember-default-set --type=group --default-group=ipausers
+ipa automember-default-group-set --type=group --default-group=ipausers
 
-# Preview what rule would do (dry run)
+# Find orphaned automember rules (rules pointing at groups that no longer exist).
+# Note: this is NOT a dry-run preview — there is no preview command. automember-rebuild
+# applies rules retroactively to existing entries with no "what-if" mode.
 ipa automember-find-orphans --type=group
 
 # Rebuild automember for existing users (apply rules retroactively)
@@ -313,13 +322,17 @@ UIDs/GIDs to new users. Each replica has its own non-overlapping range.
 ```mermaid
 graph LR
     subgraph "IPA Domain UID Range: 1000000 - 1999999"
-        R1["ipa1 DNA range\n1000000 - 1199999"]
-        R2["ipa2 DNA range\n1200000 - 1399999"]
-        R3["ipa3 DNA range\n1400000 - 1599999"]
+        R1["ipa1 DNA range<br/>1000000 - 1199999"]
+        R2["ipa2 DNA range<br/>1200000 - 1399999"]
     end
-    R1 -->|assigned to users| U1["jdoe uid=1000001\njsmith uid=1000002"]
+    R1 -->|assigned to users| U1["jdoe uid=1000001<br/>jsmith uid=1000002"]
     R2 -->|assigned to users| U2["bwilson uid=1200001"]
 ```
+
+> 📝 The neat range boundaries above are illustrative for teaching. Real DNA
+> ranges are not 200k-wide blocks at round numbers — IPA carves each replica a
+> sub-range (default 200000 IDs) starting at a randomly chosen base inside the
+> domain range. Use `ipa idrange-find` and the DNA plugin config to see actual values.
 
 ```bash
 # View current ID range
@@ -328,9 +341,11 @@ ipa idrange-find
 # Show detailed range info
 ipa idrange-show "EXAMPLE.COM_id_range"
 
-# View DNA plugin config (389-DS level)
-ldapsearch -Y GSSAPI -b "cn=Distributed Numeric Assignment Plugin,cn=plugins,cn=config" \
-  -s base "(objectClass=*)"
+# View DNA plugin config (389-DS level) — the ranges live under the posix-ids entry,
+# not on the plugin root, so point the base there (sub scope finds the config entries)
+ldapsearch -Y GSSAPI \
+  -b "cn=posix-ids,cn=Distributed Numeric Assignment Plugin,cn=plugins,cn=config" \
+  -s sub "(objectClass=*)"
 ```
 
 ### 4.2 Trust ID Ranges
@@ -340,10 +355,10 @@ ensures AD users' UIDs/GIDs do not collide with local IPA users:
 
 ```mermaid
 graph TD
-    A[UID ranges] --> B["Local IPA users\n1000000 - 1999999\ntype: local"]
-    A --> C["AD trust users\n(AD.EXAMPLE.COM)\n2000000 - 2999999\ntype: ipa-ad-trust"]
-    B --> D["jdoe\nuid=1000001"]
-    C --> E["AD\\jsmith\nuid=2000001"]
+    A[UID ranges] --> B["Local IPA users<br/>1000000 - 1999999<br/>type: local"]
+    A --> C["AD trust users<br/>(AD.EXAMPLE.COM)<br/>2000000 - 2999999<br/>type: ipa-ad-trust"]
+    B --> D["jdoe<br/>uid=1000001"]
+    C --> E["AD\\jsmith<br/>uid=2000001"]
 ```
 
 ```bash
@@ -369,9 +384,9 @@ SSH keys) for specific users on specific hosts or host groups. This is useful fo
 
 ```mermaid
 graph LR
-    A[IPA User: jdoe\nuid=1000001\nshell=/bin/bash] -->|Default view| B[web01.example.com\nuid=1000001]
-    A -->|Legacy view| C[legacy01.example.com\nuid=500\nshell=/bin/sh]
-    A -->|Dev view| D[dev01.example.com\nhomeDirectory=/workspace/jdoe]
+    A["IPA User: jdoe<br/>uid=1000001<br/>shell=/bin/bash"] -->|Default view| B["web01.example.com<br/>uid=1000001"]
+    A -->|Legacy view| C["legacy01.example.com<br/>uid=500<br/>shell=/bin/sh"]
+    A -->|Dev view| D["dev01.example.com<br/>homeDirectory=/workspace/jdoe"]
 ```
 
 ```bash
@@ -427,13 +442,13 @@ sequenceDiagram
     participant IPA as FreeIPA
     participant User as New Employee
 
-    HR->>IPA: ipa stageuser-add\n(2 weeks before start date)
-    IPA-->>HR: Staged user created\n(cannot log in)
+    HR->>IPA: ipa stageuser-add<br/>(2 weeks before start date)
+    IPA-->>HR: Staged user created<br/>(cannot log in)
     Note over IPA: Account exists but inactive
-    HR->>IPA: ipa stageuser-activate\n(on start date)
-    IPA-->>HR: User moved to active\nKerberos principal created
+    HR->>IPA: ipa stageuser-activate<br/>(on start date)
+    IPA-->>HR: User moved to active<br/>Kerberos principal created
     IPA->>User: Welcome email / temp password
-    User->>IPA: kinit newemployee\n(forced password change)
+    User->>IPA: kinit newemployee<br/>(forced password change)
     IPA-->>User: Account fully active
 ```
 
@@ -452,10 +467,10 @@ Policies are applied at the **global** level or to specific **groups**.
 
 ```mermaid
 graph TD
-    A[Global Password Policy\napplies to all users] -->|overridden by| B[Group Policy\nhigher priority wins]
-    B --> C[User in 'admins' group\nstronger policy]
-    B --> D[User in 'contractors' group\ndifferent expiry]
-    A --> E[User with no group policy\nuses global]
+    A["Global Password Policy<br/>applies to all users"] -->|overridden by| B["Group Policy<br/>higher priority wins"]
+    B --> C["User in 'admins' group<br/>stronger policy"]
+    B --> D["User in 'contractors' group<br/>different expiry"]
+    A --> E["User with no group policy<br/>uses global"]
 ```
 
 ```bash
