@@ -100,7 +100,7 @@ ipa ca-show vpn-ca
 
 # Show the sub-CA certificate
 ipa ca-show vpn-ca --all | grep "Certificate:"
-ipa ca-show vpn-ca --chain    # show full chain
+ipa ca-show vpn-ca --certificate-out=/tmp/vpn-ca.crt
 
 # Disable a sub-CA (prevent new issuance, does not revoke existing)
 ipa ca-disable vpn-ca
@@ -281,7 +281,7 @@ graph TD
     subgraph "Challenge Types"
         ACME <-->|dns-01| DNS["IPA DNS<br/>or external DNS"]
         ACME <-->|http-01| HTTP["Port 80 on client<br/>.well-known/acme-challenge/"]
-        ACME <-->|tls-alpn-01| TLS[Port 443 on client]
+        ACME <-->|not supported| ALPN["tls-alpn-01 is not in Dogtag 11"]
     end
 ```
 
@@ -641,9 +641,9 @@ ipa-healthcheck \
   --output-type human \
   2>&1 | grep -v SUCCESS
 
-# Check specific cert sources
+# Cert expiry checks live under ipahealthcheck.ipa.certs
 ipa-healthcheck \
-  --source ipahealthcheck.dogtag.ca.dogtagCACertsExpiration \
+  --source ipahealthcheck.ipa.certs \
   --output-type human
 
 # getcert: all tracked certs
@@ -750,18 +750,19 @@ curl -s https://ipa1.example.com/acme/directory | python3 -m json.tool
 # ── EXERCISE 5: OCSP check ───────────────────────────────────────────────────
 
 # Check cert status
+ipa ca-show webapp-ca --certificate-out=/tmp/webapp-ca.crt
 openssl ocsp \
-  -issuer /etc/ipa/ca.crt \
+  -issuer /tmp/webapp-ca.crt \
   -cert /tmp/api.crt \
   -url http://ipa1.example.com/ca/ocsp
 
-# Revoke the cert and re-check
-SERIAL=$(openssl x509 -in /tmp/api.crt -noout -serial \
-  | awk -F= '{print $2}' | xargs printf "%d\n")
+# Revoke the cert and re-check. Prefix the hex serial or printf treats it as decimal.
+HEX=$(openssl x509 -in /tmp/api.crt -noout -serial | cut -d= -f2)
+SERIAL=$(printf '%d\n' "0x$HEX")
 ipa cert-revoke $SERIAL --revocation-reason=5
 
 openssl ocsp \
-  -issuer /etc/ipa/ca.crt \
+  -issuer /tmp/webapp-ca.crt \
   -cert /tmp/api.crt \
   -url http://ipa1.example.com/ca/ocsp
 # Should now show: revoked

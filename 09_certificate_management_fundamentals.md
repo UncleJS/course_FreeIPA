@@ -84,7 +84,7 @@ graph TD
 
     subgraph "Storage"
         CA -->|cert database| NSS["("NSS DB<br/>/var/lib/pki/pki-tomcat/alias/")"]
-        CA -->|cert/request records| CSDB["("CS 389-DS<br/>localhost:7389")"]
+        CA -->|cert/request records| CSDB["o=ipaca suffix<br/>main 389-DS"]
         CSDB <-->|Dogtag replication| REPLICA["("Replica<br/>Dogtag 389-DS")"]
     end
 
@@ -393,8 +393,8 @@ stateDiagram-v2
     SUBMITTING --> CA_UNREACHABLE: network error
     SUBMITTING --> CA_REJECTED: CA denied request
     SUBMITTING --> NEED_CSR_REJECTED: CSR problem
-    SUBMITTING --> POST_SAVED_CERT: cert issued
-    POST_SAVED_CERT --> MONITORING: post-save cmd ran OK
+    SUBMITTING --> POST_SAVE_CERT: cert issued
+    POST_SAVE_CERT --> MONITORING: post-save cmd ran OK
     MONITORING --> NEED_TO_SUBMIT: cert near expiry<br/>(renewal window reached)
     NEED_TO_SUBMIT --> SUBMITTING: renewal submit
     CA_UNREACHABLE --> SUBMITTING: retry after backoff
@@ -408,7 +408,7 @@ stateDiagram-v2
 | `SUBMITTING` | Request sent to CA, waiting for response |
 | `CA_UNREACHABLE` | Cannot reach CA, will retry |
 | `CA_REJECTED` | CA refused the request (check logs) |
-| `POST_SAVED_CERT` | Cert saved, running post-save command |
+| `POST_SAVE_CERT` | Cert saved, running post-save command |
 
 ```bash
 # View all tracked certificates and their states
@@ -431,7 +431,7 @@ getcert list | grep -v "status: MONITORING"
 getcert start-tracking \
   -f /etc/pki/tls/certs/webapp.crt \
   -k /etc/pki/tls/private/webapp.key \
-  -p HTTP/webapp.example.com \
+  -K HTTP/web01.example.com \
   -c IPA
 
 # Request a NEW certificate and start tracking it
@@ -593,7 +593,7 @@ getcert request \
 
 # Wait for issuance (or force)
 getcert list -f /etc/pki/tls/certs/webapp.crt
-# Status should change: SUBMITTING → POST_SAVED_CERT → MONITORING
+# Status should change: SUBMITTING → POST_SAVE_CERT → MONITORING
 
 # Verify the certificate
 openssl x509 -in /etc/pki/tls/certs/webapp.crt -text -noout \
@@ -711,7 +711,7 @@ getcert list -f /etc/pki/tls/certs/webapp.crt
 getcert resubmit -f /etc/pki/tls/certs/webapp.crt
 sleep 5
 getcert list -f /etc/pki/tls/certs/webapp.crt
-# Status should cycle through SUBMITTING → POST_SAVED_CERT → MONITORING
+# Status should cycle through SUBMITTING → POST_SAVE_CERT → MONITORING
 
 # Check the post-save command ran
 cat /tmp/cert-renewal.log
@@ -719,9 +719,8 @@ cat /tmp/cert-renewal.log
 # ── STEP 4: View and revoke ───────────────────────────────────────────────────
 
 # Get the certificate serial number
-SERIAL=$(openssl x509 -in /etc/pki/tls/certs/webapp.crt -noout -serial \
-  | awk -F= '{print $2}' \
-  | xargs printf "%d\n")
+HEX=$(openssl x509 -in /etc/pki/tls/certs/webapp.crt -noout -serial | cut -d= -f2)
+SERIAL=$(printf '%d\n' "0x$HEX")
 echo "Serial (decimal): $SERIAL"
 
 # View the cert in IPA

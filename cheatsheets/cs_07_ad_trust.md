@@ -43,8 +43,8 @@ ipa dnsforwardzone-add ad.example.com \
     --forward-policy=only
 
 # Verify DNS resolution of AD services
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
 dig +short A dc1.ad.example.com
 
 # Step 4: Run ipa-adtrust-install on each IPA trust controller
@@ -322,8 +322,8 @@ sudo tail -f /var/log/sssd/sssd_ad.example.com.log
 
 ```bash
 # Confirm DNS can still find usable AD controllers
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
 
 # Confirm IPA trust services are healthy
 sudo systemctl status smb winbind
@@ -350,8 +350,8 @@ sudo systemctl restart sssd winbind
 ```bash
 # Cannot create trust
 # Check DNS
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
 # Check network
 nc -zv dc1.ad.example.com 445
 nc -zv dc1.ad.example.com 88

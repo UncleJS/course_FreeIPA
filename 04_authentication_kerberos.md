@@ -83,7 +83,7 @@ graph LR
 Key Kerberos properties:
 - **No plaintext passwords** over the network (ever)
 - **Mutual authentication** — the client verifies the server too
-- **Time-limited tickets** — compromise is bounded (default 10 hours)
+- **Time-limited tickets** — compromise is bounded (default 24 hours)
 - **Single Sign-On** — one `kinit` gives access to all Kerberized services
 - **Delegation** — services can act on behalf of users (with `forwardable` tickets)
 
@@ -101,7 +101,7 @@ Key Kerberos properties:
 
 ```mermaid
 graph TD
-    A[kinit: enter password once] --> B["TGT<br/>Ticket-Granting Ticket<br/>proof of identity<br/>valid 10 hours"]
+    A[kinit: enter password once] --> B["TGT<br/>Ticket-Granting Ticket<br/>proof of identity<br/>valid 24 hours"]
     B --> C["TGS exchange<br/>no password needed"]
     C --> D1["Service Ticket<br/>for SSH/server1"]
     C --> D2["Service Ticket<br/>for HTTP/webapp"]
@@ -112,7 +112,7 @@ graph TD
 ```
 
 Tickets are stored in a **credential cache** on the client:
-- RHEL 10 default: `KCM:` — the kernel keyring control manager (sssd-kcm), preferred
+- RHEL 10 default: `KCM:` — Kerberos credential manager (`sssd-kcm`), preferred
 - Alternative: `KEYRING:persistent:<uid>` (in-kernel keyring)
 - File-based: `/tmp/krb5cc_<uid>` (legacy default)
 - View with: `klist`
@@ -146,7 +146,7 @@ sequenceDiagram
 **What is in the TGT?**
 - Client principal (`jdoe@EXAMPLE.COM`)
 - Session key (shared between client and TGS)
-- Validity period (default: 10 hours, renewable for 7 days)
+- Validity period (default: 24 hours, renewable for 7 days)
 - Client's IP address (optional, configurable)
 - Encrypted with the **krbtgt service key** (client cannot read it)
 
@@ -294,16 +294,18 @@ ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab
 
-# Retrieve host keytab (usually done by ipa-client-install)
+# Retrieve host keytab only with -r, and only after
+# `ipa host-allow-retrieve-keytab`. Write a copy. Do not replace
+# /etc/krb5.keytab on the server, and do not omit -r (that rotates the host key).
 ipa-getkeytab -s ipa1.example.com \
-  -p host/server1.example.com \
-  -k /etc/krb5.keytab
+  -r \
+  -p host/client01.example.com \
+  -k /tmp/client01.keytab
 
-# Retrieve keytab and append to existing file
+# ipa-getkeytab merges into an existing keytab file. There is no --append.
 ipa-getkeytab -s ipa1.example.com \
-  -p nfs/storage.example.com \
-  -k /etc/krb5.keytab \
-  --append
+  -p HTTP/web01.example.com \
+  -k /etc/httpd/conf/http.keytab
 
 # Inspect a keytab
 klist -k /etc/krb5.keytab
@@ -320,12 +322,15 @@ ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab   # new key generated, kvno incremented
 
-# To RETRIEVE the existing key without rotating (e.g. distribute the same keytab
-# to another host), add -r — this reads the current key and does NOT change kvno:
+# To retrieve the existing key without rotating, add -r.
+# -r succeeds only if that principal may retrieve its key
+# (ipa service-allow-retrieve-keytab). Admins are not granted this by
+# default. If -r fails with an access error, do not drop -r: omitting it
+# generates a new key and invalidates every other copy.
 ipa-getkeytab -s ipa1.example.com \
   -p HTTP/webapp.example.com \
   -k /etc/httpd/conf/http.keytab \
-  -r                               # retrieve existing key, no rotation
+  -r
 
 # Check current key version number
 kvno HTTP/webapp.example.com
@@ -398,8 +403,11 @@ ipa user-mod jdoe --user-auth-type=password --user-auth-type=otp
 # Reset to default (uses global policy)
 ipa user-mod jdoe --user-auth-type=''
 
-# Set global 2FA policy
-ipa config-mod --user-auth-type=otp
+# ⚠️ Do not set the global default to otp until admin has a working token
+# and an explicit per-user auth type. This applies to every user who has
+# no per-user type, including admin, and password kinit then fails:
+#   ipa config-mod --user-auth-type=otp
+# Recovery is a Directory Manager edit, not another ipa command.
 ```
 
 ### 5.3 RADIUS Proxy for 2FA
@@ -477,11 +485,11 @@ sequenceDiagram
 # Enable PKINIT for a user certificate mapping
 ipa certmaprule-add smartcard-rule \
   --matchrule='<ISSUER>CN=Certificate Authority,O=EXAMPLE.COM' \
-  --maprule='(|(ipacertmapdata=X509:<I>{issuer_dn!nss_x500}<S>{subject_dn!nss_x500})(objectClass=ipaUser)(uid={subject_nt_principal.0}))' \
+  --maprule='(ipacertmapdata=X509:<I>{issuer_dn!nss_x500}<S>{subject_dn!nss_x500})' \
   --domain=example.com
 
 # Add a certificate to a user (for PKINIT mapping)
-ipa user-add-cert jdoe --certificate="$(base64 /path/to/jdoe.crt | tr -d '\n')"
+ipa user-add-cert jdoe --certificate="$(openssl x509 -outform der -in /path/to/jdoe.crt | base64 -w 0)"
 
 # Test PKINIT auth
 kinit -X X509_user_identity=PKCS11:/usr/lib64/pkcs11/opensc-pkcs11.so jdoe
@@ -673,7 +681,7 @@ flowchart TD
 kinit admin
 
 # Inspect the TGT
-klist -v          # full details including enc type, flags
+klist -e -f          # full details including enc type, flags
 klist -e          # show encryption types
 
 # Destroy ticket cache
@@ -693,7 +701,7 @@ kinit -R
 kinit admin
 kvno ldap/ipa1.example.com       # fetch service ticket
 klist                            # shows both TGT and service ticket
-klist -v                         # shows service ticket details
+klist -e -f                         # shows service ticket details
 
 # ── EXERCISE 3: Keytab operations ────────────────────────────────────────────
 

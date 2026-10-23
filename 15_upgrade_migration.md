@@ -88,7 +88,7 @@ graph TD
 
 ```bash
 # 1. Verify current state is healthy before upgrading anything
-sudo ipa-healthcheck --all --output-type human 2>&1 | \
+sudo ipa-healthcheck --output-type human 2>&1 | \
     grep -E "ERROR|WARNING|CRITICAL"
 # Target: 0 ERRORs. Resolve before proceeding.
 
@@ -169,12 +169,13 @@ sudo dnf changelog ipa-server 2>/dev/null | head -50
 # NEVER upgrade all replicas simultaneously
 
 # Step 1: Identify the upgrade order
-# Upgrade non-critical replicas first, leave the most critical for last
+# Step 1: Upgrade the CA renewal master first, then other CA replicas,
+# then non-CA replicas. See section 5.1. Do not leave the renewal master last.
 
 # Step 2: On the replica to upgrade:
 
 # Verify pre-upgrade health
-sudo ipa-healthcheck --all | grep -c '"result": "SUCCESS"'
+sudo ipa-healthcheck | grep -c '"result": "SUCCESS"'
 
 # Apply updates
 sudo dnf update -y
@@ -190,7 +191,7 @@ sudo ipa-server-upgrade
 # Output: "Update complete"
 
 # Run healthcheck
-sudo ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+sudo ipa-healthcheck | grep -E "ERROR|CRITICAL"
 
 # Step 3: Verify replication still works from a different replica
 ipa user-add upgrade-test --first=Upgrade --last=Test
@@ -245,7 +246,7 @@ sudo dnf update ipa-server \
 # ipa-server-upgrade runs automatically
 # Verify:
 sudo ipactl status
-sudo ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+sudo ipa-healthcheck | grep -E "ERROR|CRITICAL"
 ```
 
 ### 4.2 Schema Update Process
@@ -307,7 +308,7 @@ Use a simple go/no-go rule after a failed in-place upgrade:
 ```bash
 # Minimum go/no-go checks before proceeding
 ipactl status
-ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+ipa-healthcheck | grep -E "ERROR|CRITICAL"
 ipa topologysuffix-verify domain
 ```
 
@@ -372,7 +373,7 @@ sudo needs-restarting -r || sudo reboot
 sudo ipactl status
 
 # 6. Run post-upgrade verification
-sudo ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+sudo ipa-healthcheck | grep -E "ERROR|CRITICAL"
 
 # 7. Test authentication via this replica specifically
 KRB5_CONFIG=/etc/krb5.conf kinit admin@EXAMPLE.COM
@@ -415,7 +416,7 @@ FreeIPA supports a brief **mixed-version window** during rolling upgrades. Withi
 sudo ipactl status
 
 # 2. ipa-healthcheck clean
-sudo ipa-healthcheck --all --output-type human
+sudo ipa-healthcheck --output-type human
 
 # 3. Replication functional
 ipa topologysuffix-verify domain
@@ -429,7 +430,7 @@ ipa cert-request \
 
 # 5. DNS resolving
 dig +short ipa1.example.com
-dig +short SRV _kerberos._tcp.example.com
+dig +short _kerberos._tcp.example.com SRV
 
 # 6. Kerberos authentication
 kinit admin
@@ -511,7 +512,6 @@ kinit admin
 # Migrate users and groups from OpenLDAP
 ipa migrate-ds \
     --bind-dn="cn=admin,dc=old,dc=com" \
-    --bind-pass='OldLDAPPass' \
     --user-container="ou=People" \
     --group-container="ou=Group" \
     --user-objectclass=posixAccount \
@@ -570,9 +570,7 @@ sequenceDiagram
 
 NIS (`ypserv`, `ypbind`, `yp-tools`) is **not available** in RHEL 10. Migration to FreeIPA is mandatory before upgrading to RHEL 10.
 
-> 📝 During a transition, FreeIPA's **slapi-nis** plugin can serve NIS maps to
-> remaining legacy NIS clients from the IPA directory (`ipa-nis-manage enable`),
-> letting you migrate clients gradually instead of in one cut-over.
+> 📝 RHEL 10 IdM does not ship the NIS server (`ipa-nis-manage`, slapi-nis). Export the maps on the old NIS host, then import users here. There is no IPA-side NIS emulator to leave running.
 
 ### 8.2 Export NIS Maps
 
@@ -610,8 +608,8 @@ while IFS=: read login pass uid gid gecos home shell; do
     ipa user-add "$login" \
         --first="$first" \
         --last="$last" \
-        --uid="$uid" \
-        --gid="$gid" \
+        --uidnumber="$uid" \
+        --gidnumber="$gid" \
         --homedir="$home" \
         --shell="$shell" 2>/dev/null && echo "Added: $login"
 done < /tmp/nis-passwd.txt
@@ -619,7 +617,7 @@ done < /tmp/nis-passwd.txt
 # Import groups
 while IFS=: read groupname pass gid members; do
     [[ "$gid" -lt 1000 ]] && continue
-    ipa group-add "$groupname" --gid="$gid" 2>/dev/null
+    ipa group-add "$groupname" --gidnumber="$gid" 2>/dev/null
     for member in $(echo "$members" | tr ',' ' '); do
         ipa group-add-member "$groupname" --users="$member" 2>/dev/null
     done
@@ -781,9 +779,12 @@ kinit admin@NEW.COMPANY.COM
 kinit admin@EXAMPLE.COM
 
 # Migrate users from AD (requires AD LDAP read access)
+# migrate-ds prompts for the bind password. There is no --bind-pass flag.
+# AD entries without a uid attribute are skipped. Passwords are not copied
+# as Kerberos keys. The /ipa/migration/ page checks the imported userPassword
+# hash locally. It does not bind back to AD.
 ipa migrate-ds \
     --bind-dn="CN=ServiceAcct,CN=Users,DC=ad,DC=example,DC=com" \
-    --bind-pass='ServiceAcctPassword' \
     --user-container="CN=Users" \
     --user-objectclass=user \
     --group-container="CN=Users" \
@@ -856,7 +857,7 @@ ipa config-mod --enable-migration=TRUE
 
 # Step 1: Assess damage
 sudo ipactl status
-sudo ipa-healthcheck --all 2>&1 | head -30
+sudo ipa-healthcheck 2>&1 | head -30
 
 # Step 2: Try to recover in-place
 sudo ipa-server-upgrade --debug
@@ -881,19 +882,9 @@ ipa user-find | head -5
 ### 11.2 RHEL Package Rollback
 
 ```bash
-# RHEL 10 supports dnf history for rollback
-sudo dnf history list | head -10
-
-# Undo the last transaction (package update)
-sudo dnf history undo <transaction-id>
-
-# Undo a specific IPA update
-sudo dnf history info <transaction-id>   # review what changed
-sudo dnf history undo <transaction-id>
-
-# WARNING: After dnf rollback, run ipa-server-upgrade anyway
-# because the DB may have been partially updated
-sudo ipa-server-upgrade
+# dnf history undo is not a supported IdM rollback. A new schema can remain
+# under the old packages. Restore the ipa-backup taken before the upgrade.
+sudo ipa-restore /var/lib/ipa/backup/ipa-full-YYYY-MM-DD-HH-MM-SS
 ```
 
 ### 11.3 Backup and Restore Quick Reference
@@ -933,12 +924,12 @@ sudo ipa-replica-manage -p 'DM_Password' re-initialize \
 
 > **Scenario:** Perform a simulated rolling upgrade of a 2-replica environment, then perform a test migration of OpenLDAP users into IPA.
 
-### Lab 12.1 — Pre-Upgrade Health Snapshot
+### Lab 15.1 — Pre-Upgrade Health Snapshot
 
 ```bash
 # On ipa1 — capture baseline
 TODAY=$(date +%Y%m%d)
-sudo ipa-healthcheck --all --output-type json \
+sudo ipa-healthcheck --output-type json \
     > /tmp/pre-upgrade-health-${TODAY}.json
 
 # Summarize
@@ -958,7 +949,7 @@ sudo ipa-backup
 ls -lh /var/lib/ipa/backup/
 ```
 
-### Lab 12.2 — Simulate Upgrade on ipa2 (Replica)
+### Lab 15.2 — Simulate Upgrade on ipa2 (Replica)
 
 ```bash
 # On ipa2 — check for available updates (dry-run)
@@ -972,11 +963,11 @@ sudo dnf update ipa-server -y
 
 # Verify
 sudo ipactl status
-sudo ipa-healthcheck --all | grep -E "ERROR|WARNING|CRITICAL"
+sudo ipa-healthcheck | grep -E "ERROR|WARNING|CRITICAL"
 rpm -q ipa-server
 ```
 
-### Lab 12.3 — Verify Replication Post-Upgrade
+### Lab 15.3 — Verify Replication Post-Upgrade
 
 ```bash
 # Create test object on ipa2 (just upgraded)
@@ -990,7 +981,7 @@ ssh ipa1 "kinit -kt /etc/krb5.keytab host/ipa1.example.com; ipa user-show lab-re
 ipa user-del lab-repl-test
 ```
 
-### Lab 12.4 — Simulate OpenLDAP User Migration
+### Lab 15.4 — Simulate OpenLDAP User Migration
 
 ```bash
 # In a real migration, prefer ipa migrate-ds against the source LDAP server:
@@ -1050,12 +1041,12 @@ ipa config-mod --enable-migration=FALSE
 ipa user-del miguser1 miguser2
 ```
 
-### Lab 12.5 — Post-Lab Health Check
+### Lab 15.5 — Post-Lab Health Check
 
 ```bash
 # Capture post-lab state
 TODAY=$(date +%Y%m%d)
-sudo ipa-healthcheck --all --output-type json \
+sudo ipa-healthcheck --output-type json \
     > /tmp/post-upgrade-health-${TODAY}.json
 
 # Compare with pre-upgrade baseline

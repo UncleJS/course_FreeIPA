@@ -34,7 +34,7 @@
 
 **Prerequisites:**
 - RHEL 10 server, minimum 4 vCPU / 8 GB RAM / 40 GB disk
-- Static IP, FQDN set in `/etc/hostname` (e.g. `ipa.example.com`)
+- Static IP, FQDN set in `/etc/hostname` (`ipa1.example.com`)
 - Forward and reverse DNS entries exist (or will be managed by IPA)
 - Time synchronisation (chrony) running
 - No conflicting hostname in `/etc/hosts` (127.0.0.1 must not resolve to the FQDN)
@@ -43,7 +43,7 @@
 
 ```bash
 # Verify hostname
-hostname -f          # must return ipa.example.com
+hostname -f          # must return ipa1.example.com
 
 # Check /etc/hosts — remove any line mapping 127.x.x.x to the FQDN
 grep $(hostname) /etc/hosts
@@ -73,7 +73,7 @@ dnf install -y ipa-server ipa-server-dns bind-dyndb-ldap
 ### Step 4 — Open firewall
 
 ```bash
-firewall-cmd --permanent --add-service={freeipa-ldap,freeipa-ldaps,freeipa-replication,freeipa-trust,dns,kerberos,kpasswd,http,https,ntp}
+firewall-cmd --permanent --add-service={freeipa-ldap,freeipa-ldaps,freeipa-trust,dns,kerberos,kpasswd,http,https,ntp}
 firewall-cmd --reload
 firewall-cmd --list-services
 ```
@@ -86,7 +86,7 @@ ipa-server-install \
   --realm=EXAMPLE.COM \
   --ds-password="$(systemd-ask-password 'DS Manager password: ')" \
   --admin-password="$(systemd-ask-password 'Admin password: ')" \
-  --hostname=ipa.example.com \
+  --hostname=ipa1.example.com \
   --ip-address=192.168.1.10 \
   --setup-dns \
   --forwarder=8.8.8.8 \
@@ -114,17 +114,18 @@ ipa-healthcheck --failures-only
 # Enforce TLS 1.2+ (already DEFAULT policy on RHEL 10, but confirm)
 update-crypto-policies --show
 
-# Disable anonymous LDAP bind
+# Limit anonymous binds to the root DSE. "off" breaks enrollment and SSSD.
 ldapmodify -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket -Y EXTERNAL <<'EOF'
 dn: cn=config
 changetype: modify
 replace: nsslapd-allow-anonymous-access
-nsslapd-allow-anonymous-access: off
+nsslapd-allow-anonymous-access: rootdse
 EOF
+ipactl restart
 
 # Enable CRL publication
-ipa crlgen-manage enable
-ipa crlgen-manage status
+ipa-crlgen-manage enable
+ipa-crlgen-manage status
 ```
 
 ### Decision Flow
@@ -166,7 +167,7 @@ chronyc tracking | grep "Leap status"
 update-crypto-policies --show   # DEFAULT or FIPS — must match master
 
 dnf install -y ipa-server ipa-server-dns bind-dyndb-ldap
-firewall-cmd --permanent --add-service={freeipa-ldap,freeipa-ldaps,freeipa-replication,freeipa-trust,dns,kerberos,kpasswd,http,https,ntp}
+firewall-cmd --permanent --add-service={freeipa-ldap,freeipa-ldaps,freeipa-trust,dns,kerberos,kpasswd,http,https,ntp}
 firewall-cmd --reload
 ```
 
@@ -288,9 +289,7 @@ ipa-client-install \
 ```bash
 # On IPA server: generate one-time password for the host
 # Step 1 — create the host object (if it doesn't already exist)
-ipa host-add client01.example.com --ip-address=192.168.1.20 --force
-# Step 2 — set/generate an OTP on the existing host object
-ipa host-mod client01.example.com --otp="$(openssl rand -hex 16)"
+ipa host-add client01.example.com --ip-address=192.168.1.20 --random
 
 # On client
 ipa-client-install \
@@ -715,9 +714,9 @@ update-crypto-policies --show
 ### Step 3 — Verify crypto policy details
 
 ```bash
-# Confirm RSA minimum key length = 3072 in FIPS
+# Stock FIPS min_rsa_size is 2048. 3072 is FUTURE / FIPS:OSPP, not FIPS.
 cat /usr/share/crypto-policies/policies/FIPS.pol | grep -i rsa_min_size
-# min_rsa_size = 3072
+# min_rsa_size = 2048
 
 # Confirm no RC4/DES
 cat /usr/share/crypto-policies/policies/FIPS.pol | grep -iE 'rc4|des|arcfour'
@@ -738,7 +737,7 @@ ipa-server-install \
   --realm=EXAMPLE.COM \
   --ds-password="<DS-password>" \
   --admin-password="<admin-password>" \
-  --hostname=ipa.example.com \
+  --hostname=ipa1.example.com \
   --ip-address=192.168.1.10 \
   --setup-dns \
   --forwarder=8.8.8.8 \
@@ -808,7 +807,7 @@ flowchart TD
 **Goal:** Remove a replica from the IPA topology without data loss, ensuring remaining replicas continue to serve all services.
 
 **Prerequisites:**
-- At least **2 other working replicas** remain after removal (including at least 1 CA replica)
+- The lab has `ipa1` and `ipa2` only. Removing `ipa2` leaves a single server. That is fine for the lab. In production, keep a second replica and at least one CA before you remove a server.
 - No clients exclusively pointing to the replica being removed
 - Admin access to IPA
 
@@ -822,11 +821,8 @@ ipa server-find --all | grep -E "Server name:|Enabled roles:"
 
 # Check topology
 ipa topologysegment-find domain
-ipa topologysegment-find cn=cas
-
-# Check CA replicas
-ipa-replica-manage list --verbose
-ipa-csreplica-manage list
+ipa topologysegment-find ca
+ipa server-role-find --role "CA server"
 ```
 
 ### Step 2 — Verify minimum viable topology after removal
@@ -961,14 +957,13 @@ curl -sk https://localhost:8443/ca/admin/ca/getStatus | python3 -m json.tool
 ### Step 5 — Re-initialise remaining replicas from restored master
 
 ```bash
-# On master (restored server), force-reinitialise replicas
-ipa-replica-manage force-sync --from=ipa1.example.com
-
-# For CA replication
-ipa-csreplica-manage force-sync --from=ipa1.example.com
-
-# On each replica, check sync
-ipa-replica-manage status ipa1.example.com
+# On each remaining replica, rebuild it from the restored master.
+# Run this where the segment's --left or --right names the replica to overwrite.
+ipa topologysegment-find domain
+ipa topologysegment-reinitialize domain ipa1.example.com-to-ipa2.example.com --right
+ipa topologysegment-find ca
+ipa topologysuffix-verify domain
+ipa topologysuffix-verify ca
 ```
 
 ### Step 6 — Renew certificates if backup was old
@@ -1031,10 +1026,11 @@ ipa config-show | grep migration
 # Output: Enable migration mode: TRUE
 ```
 
-### Step 2 — Test migration in dry-run first
+### Step 2 — Migration writes immediately
 
 ```bash
-# Preview what would be migrated (no changes made)
+# There is no dry-run flag. This command creates users and groups.
+# migrate-ds prompts for the bind password. There is no --bind-pass.
 ipa migrate-ds \
   --with-compat \
   --schema=RFC2307 \
@@ -1042,7 +1038,6 @@ ipa migrate-ds \
   --group-container=ou=groups \
   --base-dn=dc=oldcompany,dc=local \
   --bind-dn="cn=admin,dc=oldcompany,dc=local" \
-  --bind-pass="<ldap-admin-password>" \
   --continue \
   ldap://ldap.oldcompany.local \
   2>&1 | head -60
@@ -1060,7 +1055,6 @@ ipa migrate-ds \
   --user-ignore-objectclass=shadowAccount \
   --base-dn=dc=oldcompany,dc=local \
   --bind-dn="cn=admin,dc=oldcompany,dc=local" \
-  --bind-pass="<ldap-admin-password>" \
   --continue \
   ldap://ldap.oldcompany.local
 ```
@@ -1145,14 +1139,14 @@ ipa-replica-manage list --verbose
 ipa topologysegment-find domain
 ```
 
-### Step 3 — Upgrade replicas first (non-CA replicas first, then CA replicas)
+### Step 3 — Upgrade the CA renewal master first, then other CA replicas, then non-CA replicas
 
 Score replicas before starting:
 - `1` = low client load, no special roles
 - `3` = heavy client or DNS traffic
 - `5` = CA renewal/CRL duties or other critical dependencies
 
-Start with the lowest-score replica and keep the highest-score replica for last.
+Start with the CA renewal master (`ipa config-show | grep "CA renewal master"`), then the other CA replicas, then non-CA replicas.
 
 ```bash
 # On ipa-replica1.example.com (non-CA replica)
@@ -1257,19 +1251,20 @@ update-crypto-policies --set DEFAULT
 # fips-mode-setup --enable && reboot  (only if not yet FIPS — see R-07)
 ```
 
-### Step 2 — Disable anonymous LDAP binds
+### Step 2 — Limit anonymous LDAP binds to the root DSE
 
 ```bash
 ldapmodify -H ldapi://%2Frun%2Fslapd-EXAMPLE-COM.socket -Y EXTERNAL <<'EOF'
 dn: cn=config
 changetype: modify
 replace: nsslapd-allow-anonymous-access
-nsslapd-allow-anonymous-access: off
+nsslapd-allow-anonymous-access: rootdse
 EOF
+ipactl restart
 
-# Verify
-ldapsearch -H ldap://ipa1.example.com -x -b "" -s base namingContexts 2>&1 | \
-  grep -i "Insufficient\|success"
+# Verify: root DSE succeeds; a domain search is rejected
+ldapsearch -H ldap://ipa1.example.com -x -b "" -s base namingContexts
+ldapsearch -H ldap://ipa1.example.com -x -b "dc=example,dc=com" "(uid=admin)" uid
 ```
 
 ### Step 3 — Enforce minimum TLS version
@@ -1287,11 +1282,9 @@ openssl s_client -connect ipa1.example.com:636 -tls1 </dev/null 2>&1 | grep "no 
 # /etc/krb5.conf — ensure no weak enctypes
 grep -E 'des|rc4|arcfour' /etc/krb5.conf && echo "WARNING: weak enctype found" || echo "OK"
 
-# Force principals to use AES only
-kadmin.local -q "modify_policy -minlife 1d -maxlife 10h -maxrenewlife 7d -history 5 default"
-
-# Set global Kerberos ticket policy
-ipa krbtpolicy-mod --maxlife=36000 --maxrenew=604800
+# Ticket lifetimes are set with ipa krbtpolicy-mod, not kadmin password policy.
+# modify_policy -maxlife is a password lifetime and has no -maxrenewlife.
+ipa krbtpolicy-mod --maxlife=86400 --maxrenew=604800
 ```
 
 ### Step 5 — Enable account lockout policy
@@ -1299,12 +1292,12 @@ ipa krbtpolicy-mod --maxlife=36000 --maxrenew=604800
 ```bash
 # Global password policy
 ipa pwpolicy-mod global_policy \
-  --maxpwdlife=90 \
-  --minpwdlife=1 \
-  --historysize=10 \
+  --maxlife=90 \
+  --minlife=1 \
+  --history=10 \
   --minclasses=3 \
   --minlength=14 \
-  --maxfailcount=5 \
+  --maxfail=5 \
   --failinterval=300 \
   --lockouttime=600
 
@@ -1326,8 +1319,8 @@ ipa hbacrule-find --enabled=TRUE
 ### Step 7 — Enable CRL generation and OCSP
 
 ```bash
-ipa crlgen-manage enable
-ipa crlgen-manage status
+ipa-crlgen-manage enable
+ipa-crlgen-manage status
 
 # Verify CRL URL is in issued certs
 openssl x509 -noout -text -in /var/lib/ipa/certs/httpd.crt | grep "CRL Distribution"
@@ -1349,13 +1342,15 @@ dsconf slapd-EXAMPLE-COM config get nsslapd-auditlog-logging-enabled
 
 ```bash
 # Allow only necessary services
+# A source zone wins over the interface zone. SSH from 192.168.1.0/24
+# must be allowed on ipa-zone, or that subnet loses SSH.
+# freeipa-replication (TCP 7389) is not used on FreeIPA 4.12.
 firewall-cmd --permanent --set-default-zone=drop
 firewall-cmd --permanent --zone=drop --add-service=ssh
 
-# Create dedicated IPA zone for trusted network
 firewall-cmd --permanent --new-zone=ipa-zone
 firewall-cmd --permanent --zone=ipa-zone --add-source=192.168.1.0/24
-firewall-cmd --permanent --zone=ipa-zone --add-service={freeipa-ldap,freeipa-ldaps,freeipa-replication,kerberos,kpasswd,dns,https,http}
+firewall-cmd --permanent --zone=ipa-zone --add-service={ssh,freeipa-ldap,freeipa-ldaps,kerberos,kpasswd,dns,https,http,ntp,freeipa-trust}
 firewall-cmd --reload
 firewall-cmd --zone=ipa-zone --list-all
 ```
@@ -1392,12 +1387,12 @@ echo "Hardening complete. Baseline saved."
 |---------|---------|----------|
 | Crypto policy | `update-crypto-policies --show` | `DEFAULT` or `FIPS` |
 | FIPS | `cat /proc/sys/crypto/fips_enabled` | `1` (if FIPS required) |
-| Anonymous LDAP | `nsslapd-allow-anonymous-access` | `off` |
+| Anonymous LDAP | `nsslapd-allow-anonymous-access` | `rootdse` |
 | TLS 1.0 rejected | `openssl s_client -tls1 ...` | Handshake failure |
 | Weak Kerberos enctypes | `grep -E 'des\|rc4' /etc/krb5.conf` | No matches |
 | Account lockout | `ipa pwpolicy-show global_policy` | `maxfailcount ≥ 5` |
 | allow_all HBAC disabled | `ipa hbacrule-show allow_all` | Disabled |
-| CRL generation | `ipa crlgen-manage status` | Enabled |
+| CRL generation | `ipa-crlgen-manage status` | Enabled |
 | DS audit log | `nsslapd-auditlog-logging-enabled` | `on` |
 | Healthcheck | `ipa-healthcheck --failures-only` | Zero failures |
 

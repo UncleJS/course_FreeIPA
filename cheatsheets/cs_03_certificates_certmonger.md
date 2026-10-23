@@ -43,7 +43,7 @@ sudo getcert list | grep -E "Request ID|status|expires"
 # CA_UNREACHABLE      = can't reach CA
 # CA_REJECTED         = CA refused the request
 # NEED_CA             = no CA configured for this request
-# POST_SAVED_CERT     = cert saved, running post-save command
+# POST_SAVE_CERT     = cert saved, running post-save command
 
 # Force immediate renewal attempt
 sudo getcert resubmit -i <request-id>
@@ -143,7 +143,7 @@ ipa cert-show 15 --out=/tmp/cert-15.pem
 ipa cert-find
 ipa cert-find --subject=webapp.example.com
 ipa cert-find --issuer="CN=Certificate Authority"
-ipa cert-find --revocation-reason=0     # all valid (not revoked)
+ipa cert-find --sizelimit=0     # reason 0 is "unspecified", not "unrevoked"
 ipa cert-find \
     --validnotafter-from=20260101000000Z \
     --validnotafter-to=20261231235959Z

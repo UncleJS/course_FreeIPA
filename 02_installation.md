@@ -54,7 +54,7 @@ By the end of this module, you should be able to:
 ```mermaid
 flowchart TD
     A[Start pre-install check] --> B{"FQDN set?<br/>hostname -f"}
-    B -->|No| B1["hostnamectl set-hostname<br/>ipa.example.com"]
+    B -->|No| B1["hostnamectl set-hostname<br/>ipa1.example.com"]
     B1 --> C
     B -->|Yes| C{"Forward DNS<br/>resolves FQDN?"}
     C -->|No| C1["Add A record or<br/>/etc/hosts entry"]
@@ -69,7 +69,7 @@ flowchart TD
     F -->|No| F1["setenforce 1<br/>Edit /etc/selinux/config"]
     F1 --> G
     F -->|Yes| G{RAM >= 4GB?}
-    G -->|No| G1["⚠️ Minimum not met<br/>Add RAM or use --no-pkinit"]
+    G -->|No| G1["⚠️ Minimum not met<br/>Add RAM. --no-pkinit does not shrink Dogtag"]
     G -->|Yes| H[✅ Ready to install]
 ```
 
@@ -88,25 +88,27 @@ failures trace back to misconfigured DNS or hostname.
 Correct `/etc/hosts` entry (file content — add this line to `/etc/hosts`, do not run it):
 
 ```text
-192.168.1.10  ipa.example.com  ipa
+192.168.1.10  ipa1.example.com  ipa1
 ```
+
+`ipa.example.com` may be added later as a CNAME. It is not the system hostname. The first name on the hosts line is what reverse lookup returns, and that must match `hostname -f`.
 
 ```bash
 # Verify forward lookup (via /etc/hosts or DNS)
-getent hosts ipa.example.com    # must return 192.168.1.10
-dig +short ipa.example.com      # test DNS independently of /etc/hosts
-resolvectl query ipa.example.com 2>/dev/null || host ipa.example.com
+getent hosts ipa1.example.com    # must return 192.168.1.10
+dig +short ipa1.example.com      # test DNS independently of /etc/hosts
+resolvectl query ipa1.example.com 2>/dev/null || host ipa1.example.com
 
 # Verify reverse lookup
-getent hosts 192.168.1.10       # must return ipa.example.com
+getent hosts 192.168.1.10       # must return ipa1.example.com
 dig +short -x 192.168.1.10      # DNS reverse lookup
 
 # Verify FQDN
-hostname -f                     # must return ipa.example.com
+hostname -f                     # must return ipa1.example.com
 ```
 
-> ⚠️ If `hostname -f` returns a short name (`ipa` instead of `ipa.example.com`),
-> the installer will fail. Fix with `hostnamectl set-hostname ipa.example.com`.
+> ⚠️ If `hostname -f` returns a short name (`ipa1` instead of `ipa1.example.com`),
+> the installer will fail. Fix with `hostnamectl set-hostname ipa1.example.com`.
 
 ### 1.2 Time Synchronisation
 
@@ -134,7 +136,8 @@ helps if you have custom firewall policies.
 # Open all required IPA ports
 firewall-cmd --permanent --add-service=freeipa-ldap
 firewall-cmd --permanent --add-service=freeipa-ldaps
-firewall-cmd --permanent --add-service=freeipa-replication
+# TCP 7389 (freeipa-replication) is not used on FreeIPA 4.12. CA data
+# replicates as the o=ipaca suffix over port 389. Do not require that port.
 firewall-cmd --permanent --add-service=kerberos       # Kerberos :88
 firewall-cmd --permanent --add-service=kpasswd        # kpasswd :464
 firewall-cmd --permanent --add-service=http           # HTTP :80
@@ -225,6 +228,8 @@ For automation, scripted deployment, or reproducibility:
 ipa-server-install \
   --realm=EXAMPLE.COM \
   --domain=example.com \
+  --hostname=ipa1.example.com \
+  --ip-address=192.168.1.10 \
   --ds-password='DirMgr_P@ssw0rd_Change_Me' \
   --admin-password='Admin_P@ssw0rd_Change_Me' \
   --setup-dns \
@@ -381,7 +386,7 @@ firewall-cmd --list-all
 ```bash
 firewall-cmd --permanent --add-service=freeipa-ldap      # LDAP :389
 firewall-cmd --permanent --add-service=freeipa-ldaps     # LDAPS :636
-firewall-cmd --permanent --add-service=freeipa-replication  # replication :7389
+# freeipa-replication (TCP 7389) is legacy CA replication. Nothing binds it on 4.12.
 firewall-cmd --permanent --add-service=kerberos          # Kerberos :88
 firewall-cmd --permanent --add-service=kpasswd           # kpasswd :464
 firewall-cmd --permanent --add-service=dns               # DNS :53
@@ -407,7 +412,6 @@ graph LR
         F["TCP+UDP 464<br/>(kpasswd)"]
         G["TCP+UDP 53<br/>(DNS)"]
         H["UDP 123<br/>(NTP)"]
-        I["TCP 7389<br/>(Dogtag replica)"]
     end
 ```
 
@@ -436,13 +440,13 @@ ipa-server-install --uninstall --unattended
 
 This lab walks through a complete installation from a fresh RHEL 10 minimal install.
 
-> Note: This walkthrough uses `ipa.example.com` as the single-server endpoint. In later replication labs, treat this same host as `ipa1.example.com` and keep `ipa.example.com` as the stable alias or CNAME.
+> Note: The system hostname is `ipa1.example.com`. Later modules use that name for host and service principals. `ipa.example.com` is only an alias.
 
 ```bash
 # ── STEP 1: System preparation ──────────────────────────────────────────────
 
 # (server) Set static hostname
-hostnamectl set-hostname ipa.example.com
+hostnamectl set-hostname ipa1.example.com
 
 # (server) Set static IP (adjust interface name, e.g. ens3)
 nmcli con modify ens3 \
@@ -453,11 +457,11 @@ nmcli con modify ens3 \
 nmcli con up ens3
 
 # (server) Add /etc/hosts entry
-echo "192.168.1.10  ipa.example.com  ipa" >> /etc/hosts
+echo "192.168.1.10  ipa1.example.com  ipa1" >> /etc/hosts
 
 # (server) Verify hostname and DNS
 hostname -f
-getent hosts ipa.example.com
+getent hosts ipa1.example.com
 getent hosts 192.168.1.10
 
 # (server) Sync time
@@ -474,8 +478,10 @@ dnf install -y ipa-server ipa-server-dns ipa-healthcheck
 ipa-server-install \
   --realm=EXAMPLE.COM \
   --domain=example.com \
-  --ds-password='S3cur3DirMgr!2026' \
-  --admin-password='S3cur3Admin!2026' \
+  --hostname=ipa1.example.com \
+  --ip-address=192.168.1.10 \
+  --ds-password='DirMgr_P@ssw0rd_Change_Me' \
+  --admin-password='Admin_P@ssw0rd_Change_Me' \
   --setup-dns \
   --forwarder=8.8.8.8 \
   --auto-reverse \
@@ -495,7 +501,9 @@ ipa-healthcheck --output-type human 2>&1 | grep -v SUCCESS
 # ── STEP 6: Test Web UI ──────────────────────────────────────────────────────
 
 # From a workstation that can reach the IPA server:
-curl -s https://ipa.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
+# /etc/ipa/ca.crt exists on the server after install, not on a fresh workstation.
+# Copy it first (scp ipa1.example.com:/etc/ipa/ca.crt ./ca.crt) or run this on the server.
+curl -s https://ipa1.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
 ```
 
 ### 8.1 If ipa-server-install fails, check these first
@@ -503,7 +511,7 @@ curl -s https://ipa.example.com/ipa/ui/ --cacert /etc/ipa/ca.crt | grep -i title
 ```bash
 # 1. DNS and hostname consistency
 hostname -f
-getent hosts ipa.example.com
+getent hosts ipa1.example.com
 getent hosts 192.168.1.10
 
 # 2. Time sync and clock skew
@@ -511,11 +519,13 @@ timedatectl status
 chronyc tracking
 
 # 3. Required ports and local services
-ss -tulpn | grep -E ':53 |:80 |:88 |:123 |:389 |:443 |:464 |:636 |:7389 '
+ss -tulpn | grep -E ':53 |:80 |:88 |:123 |:389 |:443 |:464 |:636 '
+# A missing :7389 socket is healthy. Dogtag 11 does not listen there.
 firewall-cmd --list-services
 
 # 4. Installer and service logs
-journalctl -u ipa-server-install --since '30 minutes ago'
+# There is no ipa-server-install systemd unit.
+tail -n 200 /var/log/ipaserver-install.log
 journalctl -u dirsrv@EXAMPLE-COM.service -u krb5kdc -u httpd --since '30 minutes ago'
 
 # 5. Disk space for Dogtag, LDAP, and temporary files
@@ -525,7 +535,7 @@ df -h / /var /tmp
 > If DNS, time, and disk space look healthy, re-run the installer only after reading the failure point in the logs. Avoid guessing and re-running blindly.
 
 **Expected final state:**
-- `ipactl status` shows all IPA-managed services as `RUNNING` (Directory Service/dirsrv, krb5kdc, kadmin, named, httpd, ipa-custodia, pki-tomcatd, ipa-otpd, ipa-dnskeysyncd). Note: `ipactl` does not manage `certmonger` or `sssd` — check those with `systemctl status`.
+- `ipactl status` shows Directory Service, krb5kdc, named, httpd, ipa-custodia, pki-tomcatd, ipa-otpd, ipa-dnskeysyncd, and sssd as `RUNNING`. `kadmin` stays `STOPPED` (kadmind is not exposed; do not start it). `ipactl` does not manage `certmonger`.
 - `kinit admin` succeeds
 - `ipa user-find` returns `admin`
 - `ipa-healthcheck` shows no `ERROR` or `CRITICAL` results

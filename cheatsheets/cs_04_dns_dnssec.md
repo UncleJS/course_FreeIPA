@@ -274,16 +274,16 @@ sudo journalctl -u named | grep -i "dnssec\|sign\|key"
 ```bash
 # IPA auto-creates SRV records — verify they exist
 # Kerberos
-dig +short SRV _kerberos._tcp.example.com
-dig +short SRV _kerberos._udp.example.com
-dig +short SRV _kerberos-master._tcp.example.com
+dig +short _kerberos._tcp.example.com SRV
+dig +short _kerberos._udp.example.com SRV
+dig +short _kerberos-master._tcp.example.com SRV
 
 # LDAP
-dig +short SRV _ldap._tcp.example.com
-dig +short SRV _ldaps._tcp.example.com
+dig +short _ldap._tcp.example.com SRV
+dig +short _ldaps._tcp.example.com SRV
 
 # HTTPS/IPA API
-dig +short SRV _https._tcp.example.com
+dig +short _https._tcp.example.com SRV
 
 # Kerberos realm TXT record
 dig +short TXT _kerberos.example.com
@@ -310,8 +310,8 @@ dig @ipa1.example.com ipa1.example.com A
 dig @ipa1.example.com example.com SOA
 
 # Test SRV record resolution
-dig +short SRV _kerberos._tcp.EXAMPLE.COM
-dig +short SRV _ldap._tcp.example.com
+dig +short _kerberos._tcp.example.com SRV
+dig +short _ldap._tcp.example.com SRV
 
 # Test from client
 cat /etc/resolv.conf

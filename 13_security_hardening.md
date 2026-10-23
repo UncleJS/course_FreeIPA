@@ -40,7 +40,7 @@
 By the end of this module, you should be able to:
 
 - Apply a repeatable hardening baseline to IPA servers and clients.
-- Choose between DEFAULT, FUTURE, and FIPS postures with clear trade-offs.
+- Choose between DEFAULT and FIPS. FUTURE is not a supported IdM policy.
 - Tighten Kerberos, LDAP, PKI, firewall, and audit settings without losing operability.
 - Recognize when FIPS requires migration instead of in-place change.
 
@@ -72,7 +72,7 @@ graph TD
 | SELinux | Enforcing |
 | Firewalld | Active, default zone = `public` |
 | FIPS | Optional (`FIPS:DEFAULT` or `FIPS`) |
-| Minimum key size | RSA 2048 (DEFAULT), RSA 3072 (FIPS) |
+| Minimum key size | RSA 2048 on DEFAULT and FIPS. RSA 3072 is FUTURE and FIPS:OSPP, which IdM does not support |
 | TLS minimum | TLS 1.2 (DEFAULT), TLS 1.2 (FIPS), TLS 1.3 available |
 
 ### 1.3 Threat Mapping for Common Controls
@@ -99,11 +99,10 @@ graph TD
 graph LR
     LEGACY["LEGACY<br/>❌ Never use<br/>RC4, DES, SHA-1, TLS 1.0"]
     DEFAULT["DEFAULT ✓<br/>Recommended baseline<br/>TLS 1.2+, AES, SHA-256+"]
-    FUTURE["FUTURE<br/>Stricter — RSA 3072+<br/>No SHA-1 in any context"]
+    FUTURE["FUTURE<br/>Unsupported for IdM<br/>RSA 3072"]
     FIPS["FIPS<br/>FIPS 140-3 compliant<br/>Required for govt/regulated"]
 
     LEGACY -.->|upgrade| DEFAULT
-    DEFAULT -->|harden| FUTURE
     DEFAULT -->|compliance| FIPS
 ```
 
@@ -116,11 +115,9 @@ sudo update-crypto-policies --show
 # Apply DEFAULT (IPA requires at minimum DEFAULT)
 sudo update-crypto-policies --set DEFAULT
 
-# Apply FUTURE (stricter — test thoroughly before applying to IPA)
-sudo update-crypto-policies --set FUTURE
-
-# Apply FIPS (see [Section 3 — FIPS 140-3 Mode](#3-fips-140-3-mode) for full FIPS setup)
-sudo update-crypto-policies --set FIPS
+# IdM supports DEFAULT, and FIPS only when it was enabled before install
+# with fips-mode-setup. Do not apply FUTURE. It is not a supported IdM policy.
+# Do not run `update-crypto-policies --set FIPS` on an already installed server.
 
 # Never apply LEGACY in an IPA environment
 # LEGACY allows RC4/DES which IPA explicitly rejects
@@ -231,11 +228,11 @@ sudo kadmin.local -q "getprinc krbtgt/EXAMPLE.COM" | grep "MKey"
 # Check permitted enctypes in krb5.conf
 grep -A10 '\[libdefaults\]' /etc/krb5.conf | grep enctype
 
-# FIPS-safe /etc/krb5.conf snippet (auto-set by IPA in FIPS mode):
-# [libdefaults]
-#  default_tkt_enctypes = aes256-cts-hmac-sha384-192 aes256-cts-hmac-sha1-96
-#  default_tgs_enctypes = aes256-cts-hmac-sha384-192 aes256-cts-hmac-sha1-96
-#  permitted_enctypes   = aes256-cts-hmac-sha384-192 aes256-cts-hmac-sha1-96
+# A new FIPS IdM install uses only these enctypes:
+#  aes256-cts-hmac-sha384-192
+#  aes128-cts-hmac-sha256-128
+# It does not add aes256-cts-hmac-sha1-96. Do not put the SHA-1 HMAC
+# enctype back, and do not drop aes128-sha2.
 ```
 
 ### 3.5 FIPS and AD Trust Compatibility
@@ -246,8 +243,9 @@ grep -A10 '\[libdefaults\]' /etc/krb5.conf | grep enctype
 # On AD DC (PowerShell):
 # Get-ADDefaultDomainPasswordPolicy | Select KerberosEncryptionType
 
-# If AD uses RC4 only, FIPS mode will break the trust
-# Fix: enable AES encryption on AD accounts and trust
+# AD still uses aes256-cts-hmac-sha1-96 even when AES is enabled.
+# A FIPS IdM trust fails for that reason, not only because of RC4.
+# If AD uses RC4 only, the trust fails as well.
 ```
 
 ### 3.6 Retrofitting FIPS into an Existing IPA Deployment
@@ -387,7 +385,7 @@ sudo kadmin.local -q "modprinc +requires_preauth admin"
 
 ## 5. LDAP / 389-DS Hardening
 
-### 5.1 Disable Anonymous LDAP Binds
+### 5.1 Limit Anonymous LDAP Binds to the Root DSE
 
 ```bash
 # Check current anonymous access setting
@@ -396,20 +394,29 @@ sudo ldapsearch -x -H ldap://localhost \
     "(objectClass=nsslapd-config)" \
     nsslapd-allow-anonymous-access
 
-# Disable anonymous access
+# Limit anonymous binds to the root DSE. The supported IdM value is
+# rootdse. Setting this to off blocks enrollment and SSSD, which read
+# the root DSE before they have credentials.
 sudo ldapmodify -x -H ldap://localhost \
     -D "cn=Directory Manager" -W << 'EOF'
 dn: cn=config
 changetype: modify
 replace: nsslapd-allow-anonymous-access
-nsslapd-allow-anonymous-access: off
+nsslapd-allow-anonymous-access: rootdse
 EOF
 
-# Verify
+# The change is read at Directory Server start. Restart the IPA stack
+# so dirsrv comes back before the services that depend on it.
+sudo ipactl restart
+
+# Verify: anonymous root DSE read still works
+sudo ldapsearch -x -H ldap://localhost -b "" -s base namingContexts
+
+# Verify: anonymous access to the domain tree is rejected
 sudo ldapsearch -x -H ldap://localhost \
     -b "dc=example,dc=com" \
     "(uid=admin)" uid 2>&1 | head -5
-# Should return: "Anonymous access not allowed"
+# Should return an insufficient-access or anonymous-access error
 ```
 
 ### 5.2 Enforce TLS / LDAPS
@@ -777,8 +784,12 @@ PermitRootLogin no
 # (Let crypto-policies manage this — do NOT set manually unless required)
 # Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,...
 
-# Restrict access
-AllowGroups ipa_admins wheel
+# Restrict access to groups this host can already resolve.
+# ipa_admins is not a default group. AllowGroups admins works only after
+# the IPA admins group is visible through SSSD. PermitRootLogin no removes
+# the root SSH path. Keep a console session open and confirm a second
+# login works before reloading sshd.
+AllowGroups admins wheel
 EOF
 
 sudo systemctl reload sshd
@@ -1075,7 +1086,7 @@ graph TD
 
 | # | Check | Command / Action |
 |---|-------|-----------------|
-| 1 | Disable anonymous LDAP | `nsslapd-allow-anonymous-access: off` |
+| 1 | Limit anonymous LDAP to the root DSE | `nsslapd-allow-anonymous-access: rootdse` |
 | 2 | Enforce LDAP TLS | `nsslapd-require-secure-binds: on` |
 | 3 | AES-256 Kerberos only | Set `permitted_enctypes` in krb5.conf |
 | 4 | Account lockout policy | `ipa pwpolicy-mod --maxfail=5` |
@@ -1084,7 +1095,7 @@ graph TD
 | 7 | auditd rules for IPA files | `/etc/audit/rules.d/ipa-hardening.rules` |
 | 8 | Syslog forwarding to SIEM | `/etc/rsyslog.d/ipa-forward.conf` |
 | 9 | Dogtag 8080/8443 not exposed | `firewall-cmd --add-rich-rule` |
-| 10 | Run ipa-healthcheck | `sudo ipa-healthcheck --all` |
+| 10 | Run ipa-healthcheck | `sudo ipa-healthcheck` |
 | 11 | Certificate expiry check | `sudo ipa-healthcheck --source ipahealthcheck.ipa.certs` |
 | 12 | CRL freshness check | Verify CRL master is running |
 | 13 | SSH hardening on all hosts | `PermitRootLogin no`, `AllowGroups` |
@@ -1095,13 +1106,13 @@ graph TD
 
 ```bash
 # Weekly tasks
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 sudo getcert list | grep -v MONITORING
 sudo ausearch -m avc -ts week | grep -E "ipa|dirsrv"
 
 # Monthly tasks
 ipa user-find --disabled=true | grep "User login"  # review disabled accounts
-ipa cert-find --revocation-reason=0 --validnotafter-from="$(date -d '30 days' +%Y%m%d)000000Z"
+ipa cert-find --validnotafter-from="$(date -d '30 days' +%Y%m%d)000000Z"
 
 # Quarterly tasks
 ipa pwpolicy-show global_policy   # review and update if needed
@@ -1139,13 +1150,13 @@ openssl s_client -connect ipa1.example.com:636 </dev/null 2>&1 | \
 ### Lab 13.2 — Harden LDAP
 
 ```bash
-# Disable anonymous LDAP access
+# Limit anonymous LDAP to the root DSE (do not use off)
 sudo ldapmodify -x -H ldap://localhost \
     -D "cn=Directory Manager" -W << 'EOF'
 dn: cn=config
 changetype: modify
 replace: nsslapd-allow-anonymous-access
-nsslapd-allow-anonymous-access: off
+nsslapd-allow-anonymous-access: rootdse
 -
 replace: nsslapd-auditlog-enable
 nsslapd-auditlog-enable: on
@@ -1154,10 +1165,13 @@ replace: nsslapd-auditlog-logging-enabled
 nsslapd-auditlog-logging-enabled: on
 EOF
 
-# Verify anonymous is blocked
+sudo ipactl restart
+
+# Verify: root DSE is still readable, the domain tree is not
+ldapsearch -x -H ldap://localhost -b "" -s base namingContexts
 ldapsearch -x -H ldap://localhost \
     -b "dc=example,dc=com" "(uid=admin)" uid 2>&1
-# Expected: "Anonymous access not allowed"
+# Expected: root DSE succeeds; domain search is rejected
 ```
 
 ### Lab 13.3 — Harden Password Policy
@@ -1201,10 +1215,10 @@ rm /etc/ipa/test-audit-trigger
 ### Lab 13.5 — Run Full Health Check
 
 ```bash
-sudo ipa-healthcheck --all --output-type human
+sudo ipa-healthcheck --output-type human
 
 # Check for any ERRORs or WARNINGs:
-sudo ipa-healthcheck --all --output-type json | \
+sudo ipa-healthcheck --output-type json | \
     python3 -c "
 import json, sys
 data = json.load(sys.stdin)

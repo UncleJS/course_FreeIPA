@@ -80,7 +80,7 @@ ipa --version
 sudo ipactl status
 
 # 3. Healthcheck (most comprehensive single command)
-sudo ipa-healthcheck --all 2>&1 | tee /tmp/healthcheck-$(date +%Y%m%d).txt
+sudo ipa-healthcheck 2>&1 | tee /tmp/healthcheck-$(date +%Y%m%d).txt
 
 # 4. Kerberos ticket status
 kinit admin 2>&1; klist
@@ -111,7 +111,7 @@ kinit admin && klist
 
 # IPA health and replication
 ipactl status
-ipa-healthcheck --all | grep -E "ERROR|CRITICAL"
+ipa-healthcheck | grep -E "ERROR|CRITICAL"
 ipa topologysuffix-verify domain
 
 # Certificate and disk sanity
@@ -148,14 +148,14 @@ graph TD
 
 | Command | Purpose |
 |---------|---------|
-| `sudo ipa-healthcheck --all` | Comprehensive health scan |
+| `sudo ipa-healthcheck` | Comprehensive health scan |
 | `sudo ipactl status` | All IPA service statuses |
 | `ipa topologysegment-find domain` | Replication topology and agreement status |
 | `sudo getcert list` | All certmonger-tracked certs |
 | `kinit admin && klist` | Kerberos connectivity test |
 | `sudo wbinfo --ping-dc` | AD trust Netlogon test |
 | `sudo sss_cache -E` | Flush SSSD cache |
-| `dig +short SRV _kerberos._tcp.REALM` | DNS SRV lookup |
+| `dig +short _kerberos._tcp.REALM` SRV | DNS SRV lookup |
 | `sudo testparm -s` | Samba config validation |
 | `ldapsearch -x -H ldaps://...` | LDAP connectivity test |
 
@@ -360,7 +360,9 @@ klist -kt /tmp/client01.keytab
 # Verify host keytab on client
 sudo klist -kt /etc/krb5.keytab
 
-# Re-create missing host keytab (must run on IPA server as admin)
+# Run this on client01. On the IPA server, -k /etc/krb5.keytab replaces the
+# server host keys. A lost client keytab is recreated by omitting -r, which
+# rotates that host principal. Do not add -r unless retrieve-keytab is allowed.
 ipa-getkeytab -s ipa1.example.com \
     -p host/client01.example.com \
     -k /etc/krb5.keytab
@@ -648,9 +650,9 @@ dig -x 192.168.1.10 @192.168.1.10
 sudo -u named ldapsearch -x -H ldap://localhost \
     -b "cn=dns,dc=example,dc=com" \
     "(objectClass=idnsZone)" idnsName | head -20
-# 📝 The -x above uses an anonymous bind. If anonymous binds were disabled per
-# Module 13 (nsslapd-allow-anonymous-access: off), drop -x and authenticate with
-# GSSAPI instead, e.g.:
+# 📝 The -x above uses an anonymous bind. Module 13 sets
+# nsslapd-allow-anonymous-access to rootdse, so this subtree search is
+# rejected. Drop -x and authenticate with GSSAPI instead, e.g.:
 #   kinit admin && ldapsearch -Y GSSAPI -H ldap://localhost \
 #       -b "cn=dns,dc=example,dc=com" "(objectClass=idnsZone)" idnsName | head -20
 
@@ -696,7 +698,7 @@ sudo journalctl -u ods-enforcerd -u ods-signerd --since "1 hour ago"
 ```bash
 # Common failure: DNS not resolving IPA server
 # Error: "Cannot find IPA master"
-dig +short SRV _ldap._tcp.example.com   # Must return IPA server
+dig +short _ldap._tcp.example.com SRV   # Must return IPA server
 nslookup ipa1.example.com
 
 # Fix: specify server explicitly
@@ -848,11 +850,11 @@ sudo ldapsearch -x -H ldap://localhost \
 # Re-initialize from a healthy replica (rebuilds all data on target)
 # WARNING: destructive — target loses all local changes
 
-# Modern approach: use ipa-replica-manage re-initialize (low-level 389-DS tool,
-# still functional for full re-init when topology API is insufficient):
-# From the TARGET replica:
-sudo ipa-replica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.example.com
+# Re-initialize one direction of a topology segment.
+# This overwrites the target with the source. Local-only changes on the
+# target are lost.
+ipa topologysegment-find domain
+ipa topologysegment-reinitialize domain ipa1.example.com-to-ipa2.example.com --right
 
 # Alternatively, use the 389-DS nsds5replicaEnabled toggle to trigger re-init:
 # sudo ldapmodify -x -H ldap://localhost -D "cn=Directory Manager" -W <<'EOF'
@@ -902,7 +904,7 @@ ipa topologysegment-add domain \
 ```bash
 # Error during ipa trust-add: "Cannot find AD domain"
 # Check DNS forwarder for AD domain
-dig +short SRV _ldap._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
 # If empty: fix the DNS forward zone
 ipa dnsforwardzone-show ad.example.com
 
@@ -1042,7 +1044,7 @@ sudo ipa-healthcheck --source ipahealthcheck.meta.services
 
 ```bash
 # JSON output for scripting
-sudo ipa-healthcheck --all --output-type json > /tmp/hc.json
+sudo ipa-healthcheck --output-type json > /tmp/hc.json
 
 # Parse with Python
 python3 << 'EOF'
@@ -1084,7 +1086,7 @@ After=ipa.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/ipa-healthcheck --all --output-type json --output-file /var/log/ipa/healthcheck.json
+ExecStart=/usr/bin/ipa-healthcheck --output-type json --output-file /var/log/ipa/healthcheck.json
 EOF
 
 sudo tee /etc/systemd/system/ipa-healthcheck.timer << 'EOF'
@@ -1111,11 +1113,11 @@ sudo systemctl enable --now ipa-healthcheck.timer
 
 > **Scenario:** A colleague reports that users cannot log in. IPA services appear to be running but authentication is failing. Work through the diagnosis systematically.
 
-### Lab 13.1 — Initial Triage
+### Lab 14.1 — Initial Triage
 
 ```bash
 # Run the comprehensive healthcheck first
-sudo ipa-healthcheck --all --output-type human 2>&1 | tee /tmp/lab-hc.txt
+sudo ipa-healthcheck --output-type human 2>&1 | tee /tmp/lab-hc.txt
 grep -E "ERROR|WARNING|CRITICAL" /tmp/lab-hc.txt
 
 # Check all service status
@@ -1128,7 +1130,7 @@ sudo journalctl --since "1 hour ago" --priority=err | head -50
 df -h /var /tmp /
 ```
 
-### Lab 13.2 — Test Kerberos
+### Lab 14.2 — Test Kerberos
 
 ```bash
 # Try to get a ticket
@@ -1147,7 +1149,7 @@ sudo chronyc makestep
 kinit admin
 ```
 
-### Lab 13.3 — Test LDAP
+### Lab 14.3 — Test LDAP
 
 ```bash
 # Test LDAP connectivity
@@ -1162,7 +1164,7 @@ ldapsearch -x -H ldaps://ipa1.example.com \
     "(uid=admin)" uid 2>&1 | head -10
 ```
 
-### Lab 13.4 — Check Certificates
+### Lab 14.4 — Check Certificates
 
 ```bash
 # Quick cert check
@@ -1180,7 +1182,7 @@ sudo getcert resubmit -i <id>
 sudo getcert list -i <id>
 ```
 
-### Lab 13.5 — Test User Resolution on Client
+### Lab 14.5 — Test User Resolution on Client
 
 ```bash
 # On a client host:
@@ -1203,13 +1205,13 @@ sudo tail -50 /var/log/sssd/sssd_example.com.log | \
     grep -iE "error|fail|warn"
 ```
 
-### Lab 13.6 — Resolve and Verify Fix
+### Lab 14.6 — Resolve and Verify Fix
 
 ```bash
 # After identifying and fixing the root cause:
 
 # Re-run healthcheck to confirm issues resolved
-sudo ipa-healthcheck --all --output-type human 2>&1 | \
+sudo ipa-healthcheck --output-type human 2>&1 | \
     grep -E "ERROR|WARNING|CRITICAL"
 # Target: 0 ERRORs, minimal WARNINGs
 

@@ -102,7 +102,8 @@ ipa hbacrule-add allow-dev-webservers \
 
 # Add users to the rule
 ipa hbacrule-add-user allow-dev-webservers \
-  --users=alice,bob \
+  --users=alice \
+  --users=bob \
   --groups=developers
 
 # Add target hosts
@@ -201,7 +202,8 @@ ipa hbactest \
   --user=admin \
   --host=ipa1.example.com \
   --service=sshd \
-  --rules=allow_all,allow-admins-everywhere
+  --rules=allow_all \
+  --rules=allow-admins-everywhere
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -361,7 +363,7 @@ sudo -l -U bwilson           # shows what bwilson can sudo
 sudo -l                      # shows what current user can sudo
 
 # (client) Force SSSD sudo cache refresh
-sss_cache -s sudo            # invalidate sudo cache
+sss_cache -R                 # invalidate all sudo rules
 sudo -l                      # will re-fetch from LDAP
 
 # (client) Debug SSSD sudo lookups
@@ -432,17 +434,20 @@ ipa hbacrule-add allow-admins-all \
 ipa hbacrule-mod allow-admins-all --hostcat=all --srvccat=all
 ipa hbacrule-add-user allow-admins-all --groups=admins
 
-# Test BEFORE disabling allow_all
+# While allow_all is still enabled, every sshd test below is Allowed.
 ipa hbactest --user=alice --host=web01.example.com --service=sshd
-ipa hbactest --user=alice --host=db01.example.com --service=sshd   # should deny
-ipa hbactest --user=bob --host=db01.example.com --service=sshd     # should allow
-ipa hbactest --user=admin --host=ipa1.example.com --service=sshd    # should allow
+ipa hbactest --user=alice --host=db01.example.com --service=sshd
+ipa hbactest --user=bob --host=db01.example.com --service=sshd
+ipa hbactest --user=admin --host=ipa1.example.com --service=sshd
 
-# Only disable allow_all after tests pass
+# Only disable allow_all after the specific rules exist
 ipa hbacrule-disable allow_all
 
-# Verify again
+# Alice is allowed on web servers and denied on db01. Bob and admin stay allowed.
 ipa hbactest --user=alice --host=web01.example.com --service=sshd
+ipa hbactest --user=alice --host=db01.example.com --service=sshd
+ipa hbactest --user=bob --host=db01.example.com --service=sshd
+ipa hbactest --user=admin --host=ipa1.example.com --service=sshd
 
 # ── SUDO: Service management for ops team ───────────────────────────────────
 

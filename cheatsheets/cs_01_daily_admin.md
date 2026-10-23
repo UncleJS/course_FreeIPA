@@ -42,7 +42,7 @@ sudo systemctl restart krb5kdc kadmin httpd
 sudo systemctl restart pki-tomcatd@pki-tomcat.service
 
 # Run health check
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 
 # Check version
 ipa --version
@@ -97,9 +97,8 @@ ipa user-del jsmith --preserve
 ipa user-undel jsmith
 
 # Set authentication method
-# password       — password-only auth (default)
-# otp            — OTP-only (token required; password login blocked)
-# password + otp — both required (true 2FA: password AND OTP must both succeed)
+# password + otp as two values means the user may use either type.
+# It does not require both factors at once. otp alone requires a token.
 ipa user-mod jsmith --user-auth-type=otp
 ipa user-mod jsmith --user-auth-type=password --user-auth-type=otp
 
@@ -201,7 +200,8 @@ ipa host-del server1.example.com
 ## HBAC Operations
 
 ```bash
-# Disable the allow-all rule (IMPORTANT: do this before adding specific rules)
+# Add a replacement rule and test it with hbactest, then disable allow_all.
+# Disabling allow_all first removes the only allow.
 ipa hbacrule-disable allow_all
 
 # Add HBAC rule
@@ -364,7 +364,7 @@ kinit jsmith    # enter password+OTP when prompted
 
 # List tickets
 klist
-klist -v        # verbose with encryption details
+klist -e -f    # encryption types and ticket flags
 
 # Renew ticket
 kinit -R
@@ -406,7 +406,7 @@ ipa host-find --desc="web"
 
 # Find certificates
 ipa cert-find --subject=jsmith
-ipa cert-find --revocation-reason=0   # find unrevoked certs
+ipa cert-find --sizelimit=0   # reason 0 means "unspecified", not "unrevoked"
 ipa cert-find --validnotafter-from=20260101000000Z
 
 # Find services

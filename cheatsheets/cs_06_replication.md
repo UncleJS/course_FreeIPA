@@ -122,7 +122,7 @@ ipa server-del ipa-old.example.com \
 
 ```bash
 # Comprehensive health check
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 
 # Replication-specific checks only
 sudo ipa-healthcheck --source ipahealthcheck.ds.replication
@@ -213,51 +213,26 @@ sudo ipa-replica-manage -p 'DM_Password' list
 ## CA Replication
 
 ```bash
-# Check CA replication agreements
-sudo ipa-csreplica-manage -p 'DM_Password' list
-sudo ipa-csreplica-manage -p 'DM_Password' status
+# CA agreements are the "ca" topology suffix, not ipa-csreplica-manage.
+ipa topologysegment-find ca
+ipa topologysuffix-verify ca
 
-# Force CA sync
-sudo ipa-csreplica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.example.com
+# Rebuild one CA segment from the other side. This overwrites the target.
+ipa topologysegment-reinitialize ca ipa1.example.com-to-ipa2.example.com --right
 
-# Re-initialize CA replication
-sudo ipa-csreplica-manage -p 'DM_Password' re-initialize \
-    --from=ipa1.example.com
-
-# Check which server is CRL master
+# CA renewal master and CRL generation master are different roles.
 ipa config-show | grep "IPA CA renewal master"
-sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
-
-# 📝 CA renewal master and CRL generation master are DISTINCT roles:
-#    --ca-renewal-master-server moves only the cert-renewal duty;
-#    CRL generation is moved separately via the Dogtag CS.cfg edits below (see Module 12).
-
-# Move the CA renewal master to another server
 ipa config-mod --ca-renewal-master-server=ipa2.example.com
 
-# Enable CRL generation on new master
-# Always back up CS.cfg before editing:
-sudo cp /etc/pki/pki-tomcat/ca/CS.cfg /etc/pki/pki-tomcat/ca/CS.cfg.bak
-sudo sed -i \
-    's/ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-sudo systemctl restart pki-tomcatd@pki-tomcat.service
+# Move CRL generation with ipa-crlgen-manage. Disable the old master first.
+# On the old CRL master:
+ipa-crlgen-manage disable
+# On the new CRL master:
+ipa-crlgen-manage enable
+ipa-crlgen-manage status
 
-# Disable CRL generation on old master
-# (on the old CRL master)
-sudo cp /etc/pki/pki-tomcat/ca/CS.cfg /etc/pki/pki-tomcat/ca/CS.cfg.bak
-sudo sed -i \
-    's/ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-sudo systemctl restart pki-tomcatd@pki-tomcat.service
-
-# Validate the new master is actually publishing fresh CRLs
 curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
     openssl crl -inform DER -noout -lastupdate -nextupdate
-
-# Final check: only one host should still show enable=true
-sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -267,13 +242,11 @@ sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 ## Backup and Restore
 
 ```bash
-# Full backup (online — LDAP only, safe for running system)
-sudo ipa-backup --online
+# Data-only online backup. Services stay up. This is not a full restore image.
+sudo ipa-backup --data --online
 
-# Full backup (offline — complete including Kerberos DB)
-sudo ipactl stop
+# Full offline backup. ipa-backup stops and restarts IPA services itself.
 sudo ipa-backup
-sudo ipactl start
 
 # Backup to specific directory
 sudo ipa-backup --dir=/mnt/nas/ipa-backups/

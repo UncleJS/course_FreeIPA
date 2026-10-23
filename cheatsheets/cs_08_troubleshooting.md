@@ -75,8 +75,8 @@ ipactl stop && ipactl start   # full cycle
 
 # Individual service restart
 systemctl restart dirsrv@EXAMPLE-COM
+# Do not start kadmin. IPA leaves it STOPPED. Password changes use kpasswd (464).
 systemctl restart krb5kdc
-systemctl restart kadmin
 systemctl restart httpd
 systemctl restart pki-tomcatd@pki-tomcat
 systemctl restart named
@@ -99,18 +99,17 @@ systemctl status ipa-custodia --no-pager -l
 
 ```bash
 # From client or external host
-ss -tlnp | grep -E '80|88|389|443|464|636|749'
+ss -tlnp | grep -E ':(80|88|389|443|464|636)\b'
 
-# Expected open ports on IPA server
+# Expected listeners on an IPA server
 # 80/tcp   - HTTP (redirect to HTTPS)
 # 88/tcp   - Kerberos KDC
-# 88/udp   - Kerberos KDC
 # 389/tcp  - LDAP
 # 443/tcp  - HTTPS (WebUI / API)
 # 464/tcp  - kpasswd
-# 464/udp  - kpasswd
 # 636/tcp  - LDAPS
-# 749/tcp  - kadmin
+# UDP 88 and 464 are also open. ss -tlnp does not show UDP.
+# Port 749 is not used. kadmind is stopped. DNS is 53. NTP is 123.
 
 # Firewall check
 firewall-cmd --list-services
@@ -184,7 +183,7 @@ journalctl -u dirsrv@EXAMPLE-COM --since "1 hour ago" | grep -i 'err\|fail\|cann
 KRB5_TRACE=/dev/stderr kinit admin
 
 # List tickets
-klist -v
+klist -e -f
 
 # Destroy and re-obtain
 kdestroy -A && kinit admin
@@ -206,7 +205,7 @@ cat /etc/krb5.conf
 cat /var/kerberos/krb5kdc/kdc.conf
 
 # Verify realm in KDC
-kadmin.local -q "getprincs" | head -20
+kadmin.local -q "listprincs" | head -20
 
 # Check a principal
 kadmin.local -q "getprinc admin"
@@ -408,7 +407,7 @@ curl -sk https://ipa1.example.com:8443/ca/admin/ca/getStatus | python3 -m json.t
 ipa cert-find --sizelimit=10 --timelimit=10
 
 # Check CRL generation
-ipa crlgen-manage status
+ipa-crlgen-manage status
 ```
 
 ### 6.4 IPA RA Agent Certificate
@@ -969,20 +968,13 @@ ipa user-find --sizelimit=3
 ### 13.5 Unresponsive Replica Removal
 
 ```bash
-# Force-remove replica from topology
-# ⚠️ Force-removal can orphan RUVs/topology segments — follow up with clean-ruv (§9) to clear stale RUVs
+# server-del removes the topology segments. Do not also run
+# ipa-replica-manage del.
 ipa server-del ipa2.example.com --force
 
-# Clean up replication agreements
-ipa-replica-manage del ipa2.example.com --force
-
-# Clean up CA replication if applicable
-ipa-csreplica-manage del ipa2.example.com --force
-
-# Clean up DNA range (if replica held a range)
+# DNA slices must stay inside the domain ID range from ipa idrange-show.
+# Do not assign 1000-1999. Those UIDs belong to local system accounts.
 ipa-replica-manage dnarange-show
-# Manually reassign range if needed
-ipa-replica-manage dnarange-set ipa1.example.com 1000-1999
 ```
 
 [↑ Back to TOC](#table-of-contents)

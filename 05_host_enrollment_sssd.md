@@ -111,7 +111,7 @@ You will be prompted for:
 ```bash
 # (client) Unattended enrollment with admin credentials
 ipa-client-install \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --domain=example.com \
   --realm=EXAMPLE.COM \
   --principal=admin \
@@ -124,7 +124,7 @@ ipa-client-install \
 # (server) ipa host-add client01.example.com --random
 # Then on client:
 ipa-client-install \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --domain=example.com \
   --hostname=client01.example.com \
   --password='<one-time-password>' \
@@ -135,7 +135,7 @@ ipa-client-install \
 > 📝 Using `--random` to generate a one-time enrollment password is the **recommended
 > production approach**. Admin credentials are never transmitted to the client host.
 
-> 📝 In the beginner path, `--server=ipa.example.com` points at the single IPA server. In multi-server labs, use `ipa1.example.com` or a stable alias that resolves to the active IPA node.
+> 📝 `--server=ipa1.example.com` is the install hostname. `ipa.example.com` works here only after it is a CNAME or hosts alias for `ipa1`.
 
 ### 2.3 Enrollment Sequence
 
@@ -225,7 +225,7 @@ sudo_provider = ipa
 
 # IPA-specific settings
 ipa_domain = example.com
-ipa_server = _srv_, ipa.example.com    # _srv_ = use DNS SRV
+ipa_server = _srv_, ipa1.example.com    # _srv_ = use DNS SRV
 ipa_hostname = client01.example.com
 
 # Kerberos settings
@@ -234,17 +234,13 @@ krb5_store_password_if_offline = true
 
 # Cache settings
 cache_credentials = true
-# KCM is the RHEL 10 default credential cache (served by sssd-kcm).
-# Do not also set krb5_ccachedir — a directory cache contradicts KCM.
-krb5_ccname_template = KCM:
+# KCM comes from /etc/krb5.conf.d default_ccache_name = KCM:
+# Do not set krb5_ccachedir. It is not an SSSD option.
 
-# Home directory creation
-override_homedir = /home/%u
+# Home directory. fallback_homedir is what ipa-client-install writes.
+# override_homedir replaces LDAP and ID-view home directories.
 fallback_homedir = /home/%u
 default_shell = /bin/bash
-
-# HBAC
-ipa_hbac_refresh = 5         # seconds between HBAC rule refresh
 
 [nss]
 homedir_substring = /home
@@ -346,23 +342,20 @@ grep cache_credentials /etc/sssd/sssd.conf
 `/etc/nsswitch.conf` tells the OS where to look up identity information:
 
 ```
-# /etc/nsswitch.conf (after ipa-client-install)
-passwd:     sss files systemd
+# /etc/nsswitch.conf (after ipa-client-install / authselect sssd profile)
+passwd:     files sss systemd
 shadow:     files
-group:      sss files systemd
+group:      files [SUCCESS=merge] sss [SUCCESS=merge] systemd
+sudoers:    files sss
 hosts:      files dns myhostname
-netgroup:   sss
-automount:  sss files
+netgroup:   files sss
+automount:  files sss
 ```
 
-- `sss` — query SSSD (which queries IPA)
-- `files` — query local `/etc/passwd`, `/etc/group`
+- `files` before `sss` so local users resolve when SSSD is down
+- `[SUCCESS=merge]` combines local and IPA groups of the same name
 
-The order matters: `sss files` means "check SSSD first, then local files".
-
-> 📝 For SSSD-delivered sudo rules to take effect, `/etc/nsswitch.conf` must also
-> contain `sudoers: files sss` (paired with `services = ... sudo` in `[sssd]`,
-> enabled earlier in the SSSD config). Without this line, sudo never queries SSSD.
+> 📝 `sudoers: files sss` is required for SSSD sudo rules. `ipa-client-install` writes this through authselect. Do not edit `/etc/pam.d/password-auth` by hand; it is an authselect symlink.
 
 ### 5.2 PAM Stack
 
@@ -516,7 +509,7 @@ ipa host-disable client01.example.com
 hostnamectl set-hostname client01.example.com
 
 # Add IPA server to /etc/hosts (if no DNS yet)
-echo "192.168.1.10  ipa.example.com  ipa" >> /etc/hosts
+echo "192.168.1.10  ipa1.example.com  ipa1" >> /etc/hosts
 echo "192.168.1.20  client01.example.com  client01" >> /etc/hosts
 
 # Sync time
@@ -530,7 +523,7 @@ dnf install -y ipa-client
 # --realm is omitted here on purpose: it is auto-derived from --domain
 # (example.com -> EXAMPLE.COM). Add --realm=EXAMPLE.COM to be explicit if you wish.
 ipa-client-install \
-  --server=ipa.example.com \
+  --server=ipa1.example.com \
   --domain=example.com \
   --principal=admin \
   --password='Admin_P@ssw0rd_Change_Me' \

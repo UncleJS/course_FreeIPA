@@ -40,10 +40,10 @@
 | Network | Static IP | Static IP |
 
 ### DNS Pre-requisites (before install)
-- Fully-qualified hostname set: `hostnamectl set-hostname ipa.example.com`
-- Forward DNS resolves the server's FQDN to its IP
-- Reverse DNS resolves the server's IP to its FQDN
-- `/etc/hosts` contains `<IP>  ipa.example.com  ipa`
+- Fully-qualified hostname set: `hostnamectl set-hostname ipa1.example.com`
+- Forward DNS resolves `ipa1.example.com` to its IP
+- Reverse DNS resolves the server's IP to `ipa1.example.com`
+- `/etc/hosts` contains `<IP>  ipa1.example.com  ipa1` (`ipa.example.com` is an alias, not the system hostname)
 - NTP/Chrony synchronised (clock skew < 5 min)
 
 ### Lab Environment Naming Convention
@@ -54,7 +54,7 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 |------|----------|------------|-------|
 | IPA Server 1 (primary) | `ipa1.example.com` | 192.168.1.10 | First IPA master |
 | IPA Server 2 (replica) | `ipa2.example.com` | 192.168.1.11 | Replica / CA replica |
-| Optional VIP / CNAME | `ipa.example.com` | → `ipa1.example.com` | Stable alias used in single-server install examples |
+| Optional VIP / CNAME | `ipa.example.com` | → `ipa1.example.com` | Stable alias. Not the install hostname. |
 | IPA Client (generic) | `client01.example.com` | 192.168.1.20 | Linux host enrolled in IPA |
 | Web server (example) | `web01.example.com` | 192.168.1.21 | App host |
 | Database (example) | `db01.example.com` | 192.168.1.22 | DB host |
@@ -70,7 +70,7 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 
 > 📝 **Kerberos realms are always UPPERCASE; DNS domains are always lowercase.**
 
-> Note: Beginner modules use `ipa.example.com` as the single-server endpoint. Replication and advanced operations use `ipa1.example.com` and `ipa2.example.com`. Treat `ipa.example.com` as the stable alias that points to the current primary server.
+> Note: The install hostname is `ipa1.example.com`. `ipa.example.com` is only a CNAME or VIP that points at the current primary. Replication uses `ipa2.example.com` as the second server. The host principal is always the name from `hostname -f`.
 
 ### Firewall Ports (IPA Server)
 
@@ -134,6 +134,9 @@ All examples in this course use the following canonical hostnames and IPs. Adjus
 Critical dependency:
 02 -> 03 -> 05
 Install the server, create users/groups, then enroll clients.
+
+A replica added after an AD trust is not a trust controller until
+ipa-adtrust-install is run on it. Module 12 comes after module 11.
 ```
 
 ### Level grouping

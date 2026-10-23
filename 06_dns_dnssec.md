@@ -153,12 +153,14 @@ ipa dnszone-mod example.com \
   --expire=1209600 \
   --minimum=300
 
-# Set default TTL for zone
-ipa dnszone-mod example.com --default-ttl=300
+# Set default TTL for new records in the zone
+ipa dnszone-mod example.com --ttl=300
 
-# Allow only specific IPs to query the zone
+# Allow only specific clients to query the zone. Repeat the option;
+# one quoted string with a semicolon is a single ACL element.
 ipa dnszone-mod example.com \
-  --allow-query="192.168.1.0/24;localhost"
+  --allow-query=192.168.1.0/24 \
+  --allow-query=localhost
 
 # Enable/disable zone transfers
 ipa dnszone-mod example.com --allow-transfer="none"
@@ -344,13 +346,13 @@ ipa dnsconfig-mod --forwarder=
 ### 6.2 Per-Zone Forwarders
 
 ```bash
-# Add a per-zone forwarder (for specific domains)
-ipa dnszone-mod ad.example.com \
-  --forwarder=10.0.0.1 \
-  --forward-policy=only   # only use forwarder, don't recurse
+# Conditional forwarder for a domain this server is not authoritative for.
+# dnszone-mod only edits a zone that already exists.
+ipa dnsforwardzone-add ad.example.com \
+  --forwarder=192.168.10.10 \
+  --forward-policy=only
 
-# Show zone forwarder
-ipa dnszone-show ad.example.com | grep forward
+ipa dnsforwardzone-show ad.example.com
 ```
 
 ### 6.3 Zone Delegation

@@ -84,9 +84,7 @@ in the correct dependency order.
 
 ### 1.2 IPA Replica
 
-A replica is a **full peer** of the IPA server. It runs the same services and
-participates in multi-master replication. There is no "primary" — if ipa1 fails,
-ipa2 continues serving all clients without any manual intervention.
+A replica is a **full peer** of the IPA server for LDAP and Kerberos. If ipa1 fails, ipa2 keeps serving clients. CA renewal, CRL publishing, and DNSSEC key ownership are single roles. If the server that holds one of those roles is down, that job stops until you move it.
 
 A replica can be:
 - **Full replica** — KDC + CA + DNS + LDAP (recommended)

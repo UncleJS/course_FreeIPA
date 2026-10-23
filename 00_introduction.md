@@ -356,7 +356,7 @@ sestatus
 ```
 
 **Expected output for a correctly configured pre-install system:**
-- `hostname -f` returns the FQDN (e.g. `ipa.example.com`)
+- `hostname -f` returns the FQDN (e.g. `ipa1.example.com`)
 - `getent hosts ipa.example.com` returns the server's static IP
 - `timedatectl` shows `NTP service: active` and `System clock synchronized: yes`
 - `getenforce` returns `Enforcing`

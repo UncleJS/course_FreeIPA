@@ -52,12 +52,12 @@ By the end of this module, you should be able to:
 | **Forest trust** (a.k.a. **cross-forest trust**) | Trust spanning entire forests including all child domains; the most common FreeIPA scenario. "Forest trust" and "cross-forest trust" are two names for the same thing |
 | **External trust** | Trust to a single AD domain, not the full forest |
 | **One-way trust** | Only one side trusts the other. FreeIPA's default is **IPA trusts AD**, so AD users can access IPA resources (log in to IPA-enrolled hosts). IPA users are *not* trusted by AD |
-| **Two-way trust** | Both sides trust each other; IPA users can additionally authenticate to AD resources |
+| **Two-way trust** | Both directions exist. On RHEL 10 this does not let IdM users log in to Windows. It exists for constrained delegation (S4U2Self / S4U2Proxy) |
 | **Transitive trust** | Trust flows through intermediate domains automatically |
 
 📝 **Type vs. direction are independent.** "Forest" vs. "external" describes the *scope* of the trust (whole forest vs. one domain); "one-way" vs. "two-way" describes its *direction*. You can have a one-way forest trust or a two-way external trust, etc.
 
-FreeIPA creates a **one-way forest trust by default**: **IPA trusts AD**, so AD users can log in to Linux hosts enrolled in IPA. The reverse (IPA users authenticating to AD resources) requires a two-way trust with additional AD-side configuration and is rarely needed.
+FreeIPA creates a **one-way forest trust by default**: **IPA trusts AD**, so AD users can log in to Linux hosts enrolled in IPA. A two-way trust does not let IPA users log in to Windows. Use two-way when an application on the IdM side needs S4U2Self or S4U2Proxy.
 
 ### 1.2 Key Components
 
@@ -242,8 +242,8 @@ ipa dnsforwardzone-add ad.example.com \
     --forward-policy=only
 
 # Verify AD SRV records are reachable
-dig +short SRV _ldap._tcp.ad.example.com @192.168.10.10
-dig +short SRV _kerberos._tcp.ad.example.com @192.168.10.10
+dig +short _ldap._tcp.ad.example.com SRV @192.168.10.10
+dig +short _kerberos._tcp.ad.example.com SRV @192.168.10.10
 ```
 
 **Option B — DNS Delegation from AD to IPA**
@@ -293,9 +293,9 @@ Before creating the trust, confirm that both sides can resolve each other's crit
 
 ```bash
 # From IPA server — resolve AD services
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
-dig +short SRV _gc._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
+dig +short _gc._tcp.ad.example.com SRV
 nslookup dc1.ad.example.com
 
 # From AD DC (PowerShell) — resolve IPA services
@@ -502,8 +502,8 @@ ipa idrange-show 'AD.EXAMPLE.COM_id_range'
 ### 6.3 Modifying the ID Range
 
 ```bash
-# Change the base ID (e.g., avoid conflict with local IPA range)
-ipa idrange-mod 'AD.EXAMPLE.COM_id_range' --base-id=2000000
+# Do not change --base-id on a live trust range. That renumbers every mapped UID.
+ipa idrange-find --all
 
 # Restart SSSD after range changes
 sudo systemctl restart sssd
@@ -515,8 +515,13 @@ sudo sss_cache -E
 ### 6.4 POSIX Mode (ipa-ad-trust-posix)
 
 ```bash
-# If AD has uidNumber/gidNumber attributes populated:
-ipa trust-mod ad.example.com --range-type=ipa-ad-trust-posix
+# The range type is chosen on trust-add, not trust-mod.
+# ipa-ad-trust-posix reads uidNumber/gidNumber from AD. Incomplete POSIX
+# attributes make lookups fail. Omit --range-type and IdM may pick POSIX
+# when the forest root has any POSIX attributes.
+ipa trust-add ad.example.com \
+  --type=ad \
+  --range-type=ipa-ad-trust-posix
 
 # Verify the range type changed
 ipa idrange-show 'AD.EXAMPLE.COM_id_range' | grep "Range type"
@@ -909,17 +914,17 @@ flowchart TD
 
 ```bash
 # Verify AD SRV records from IPA server
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
-dig +short SRV _gc._tcp.ad.example.com
-dig +short SRV _ldap._tcp.dc._msdcs.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
+dig +short _gc._tcp.ad.example.com SRV
+dig +short _ldap._tcp.dc._msdcs.ad.example.com SRV
 
 # Expected: should return AD DC hostnames with port/priority/weight
 # If empty: fix DNS forwarder zone
 
 # Verify IPA SRV records are visible from AD side
-dig +short SRV _ldap._tcp.example.com @192.168.1.10
-dig +short SRV _kerberos._tcp.example.com @192.168.1.10
+dig +short _ldap._tcp.example.com SRV @192.168.1.10
+dig +short _kerberos._tcp.example.com SRV @192.168.1.10
 ```
 
 ### 11.3 Samba/Winbind Troubleshooting
@@ -973,7 +978,7 @@ id aduser1@ad.example.com
 ```bash
 # Test cross-realm ticket acquisition
 KRB5_TRACE=/dev/stderr kinit aduser1@AD.EXAMPLE.COM
-klist -v
+klist -e -f
 
 # Verify inter-realm keys exist
 sudo kadmin.local -q "getprinc krbtgt/AD.EXAMPLE.COM@EXAMPLE.COM"
@@ -1004,8 +1009,8 @@ Before deleting and recreating a trust, confirm that the original failure is not
 
 ```bash
 # 1. DNS and DC discovery
-dig +short SRV _ldap._tcp.ad.example.com
-dig +short SRV _kerberos._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
+dig +short _kerberos._tcp.ad.example.com SRV
 
 # 2. IPA-side trust services
 systemctl status smb winbind
@@ -1027,7 +1032,7 @@ If the AD team moves domain controllers, changes SRV records, or replaces IP add
 
 ```bash
 # Confirm the new SRV answers and the chosen DC
-dig +short SRV _ldap._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
 wbinfo --dc-info=ad.example.com
 
 # Refresh discovered domains and clear stale identity data
@@ -1050,7 +1055,7 @@ KRB5_TRACE=/dev/stderr kinit aduser1@AD.EXAMPLE.COM
 
 > **Environment:** One IPA master (`ipa1.example.com`), one AD DC (`dc1.ad.example.com`), one IPA client (`client01.example.com`).
 
-### Lab 12.1 — Install AD Trust Packages
+### Lab 11.1 — Install AD Trust Packages
 
 ```bash
 # On ipa1
@@ -1060,7 +1065,7 @@ sudo dnf install -y ipa-server-trust-ad
 rpm -q ipa-server-trust-ad samba samba-winbind
 ```
 
-### Lab 12.2 — Configure DNS Forwarder
+### Lab 11.2 — Configure DNS Forwarder
 
 ```bash
 # Add conditional forwarder for AD domain
@@ -1070,11 +1075,11 @@ ipa dnsforwardzone-add ad.example.com \
     --forward-policy=only
 
 # Test resolution
-dig +short SRV _ldap._tcp.ad.example.com
+dig +short _ldap._tcp.ad.example.com SRV
 dig +short A dc1.ad.example.com
 ```
 
-### Lab 12.3 — Run ipa-adtrust-install
+### Lab 11.3 — Run ipa-adtrust-install
 
 ```bash
 sudo ipa-adtrust-install \
@@ -1095,7 +1100,7 @@ sudo testparm -s | grep workgroup
 ipa dnszone-show _msdcs.example.com
 ```
 
-### Lab 12.4 — Open Firewall Ports
+### Lab 11.4 — Open Firewall Ports
 
 ```bash
 sudo firewall-cmd --permanent --add-service=freeipa-trust
@@ -1103,7 +1108,7 @@ sudo firewall-cmd --reload
 sudo firewall-cmd --list-services | grep trust
 ```
 
-### Lab 12.5 — Create the Trust
+### Lab 11.5 — Create the Trust
 
 ```bash
 # On AD DC first (PowerShell) — add conditional forwarder back to IPA
@@ -1121,7 +1126,7 @@ ipa trust-find
 ipa trust-show ad.example.com
 ```
 
-### Lab 12.6 — Verify Trust Operation
+### Lab 11.6 — Verify Trust Operation
 
 ```bash
 # Fetch domains
@@ -1136,7 +1141,7 @@ id testaduser@ad.example.com
 getent passwd testaduser@ad.example.com
 ```
 
-### Lab 12.7 — Configure HBAC for AD Users
+### Lab 11.7 — Configure HBAC for AD Users
 
 ```bash
 # Create external group and link AD group
@@ -1161,7 +1166,7 @@ ipa hbactest \
     --service=sshd
 ```
 
-### Lab 12.8 — Test AD User Login
+### Lab 11.8 — Test AD User Login
 
 ```bash
 # From an external host, SSH as AD user
@@ -1178,7 +1183,7 @@ id
 groups
 ```
 
-### Lab 12.9 — Cleanup (Optional)
+### Lab 11.9 — Cleanup (Optional)
 
 ```bash
 # Remove the trust

@@ -160,19 +160,23 @@ ipa permission-show "System: Add Users"
 # Create a permission to allow writing the 'mobile' attribute of users
 ipa permission-add "Helpdesk: Modify User Mobile" \
   --right=write \
-  --attr=mobile \
+  --attrs=mobile \
   --type=user
 
 # Create a permission to allow reading service details
 ipa permission-add "ReadOnly: View Services" \
   --right=read \
   --type=service \
-  --attr=krbprincipalname,krbcanonicalname,managedby
+  --attrs=krbprincipalname \
+  --attrs=krbcanonicalname \
+  --attrs=managedby
 
 # Create a permission scoped to a specific subtree
 ipa permission-add "Dept: Manage Dept01 Users" \
   --right=write \
-  --attr=mail,telephoneNumber,title \
+  --attrs=mail \
+  --attrs=telephoneNumber \
+  --attrs=title \
   --subtree="cn=users,cn=accounts,dc=example,dc=com" \
   --filter="(departmentNumber=01)"
 
@@ -342,8 +346,11 @@ ipa role-add-member "IT Helpdesk" --users=helpdesk01
 # Assign role to a group
 ipa role-add-member "IT Helpdesk" --groups=it-helpdesk-group
 
-# Assign role to a host (for service accounts)
-ipa role-add-member "Certificate Administrator" --hosts=certbot.example.com
+# There is no built-in role named "Certificate Administrator".
+# The privilege is "Certificate Administrators". Put it on a role, then add the host.
+ipa role-add "Certificate Operators" --desc="Hosts that manage certificates"
+ipa role-add-privilege "Certificate Operators" --privileges="Certificate Administrators"
+ipa role-add-member "Certificate Operators" --hosts=web01.example.com
 
 # Remove a member from a role
 ipa role-remove-member "IT Helpdesk" --users=helpdesk01
@@ -359,7 +366,7 @@ ipa role-show "IT Helpdesk"
 ## 5. Self-Service Permissions
 
 Self-service permissions allow **regular users** to modify their own LDAP attributes
-without requiring admin rights. These are stored in `cn=selfservice,cn=configuration`.
+without requiring admin rights. These are stored in `cn=selfservice,cn=etc,dc=example,dc=com`.
 
 ```bash
 # List existing self-service permissions
@@ -417,7 +424,10 @@ graph TD
 ipa delegation-add "HR manages employee contacts" \
   --group=hr-admins \
   --memberof=all-employees \
-  --attrs=mail,telephoneNumber,title,departmentNumber
+  --attrs=mail \
+  --attrs=telephoneNumber \
+  --attrs=title \
+  --attrs=departmentNumber
 
 # Show the delegation rule
 ipa delegation-show "HR manages employee contacts"
@@ -427,7 +437,11 @@ ipa delegation-find
 
 # Modify a delegation rule (add more attributes)
 ipa delegation-mod "HR manages employee contacts" \
-  --attrs=mail,telephoneNumber,title,departmentNumber,employeeNumber
+  --attrs=mail \
+  --attrs=telephoneNumber \
+  --attrs=title \
+  --attrs=departmentNumber \
+  --attrs=employeeNumber
 
 # Delete a delegation rule
 ipa delegation-del "HR manages employee contacts"
@@ -574,7 +588,12 @@ ipa permission-add "Helpdesk: View Users" \
   --right=read \
   --right=search \
   --type=user \
-  --attr=uid,givenname,sn,mail,mobile,telephoneNumber
+  --attrs=uid \
+  --attrs=givenname \
+  --attrs=sn \
+  --attrs=mail \
+  --attrs=mobile \
+  --attrs=telephoneNumber
 
 # ── EXERCISE 3: Custom privilege ─────────────────────────────────────────────
 

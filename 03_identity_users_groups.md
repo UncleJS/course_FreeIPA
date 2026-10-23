@@ -118,11 +118,11 @@ ipa user-mod jdoe --shell=/bin/zsh
 # Add SSH public key
 ipa user-mod jdoe --sshpubkey="ssh-ed25519 AAAA... comment"
 
-# Add a certificate (for smart card auth)
-ipa user-add-cert jdoe --certificate="$(base64 /path/to/user.crt | tr -d '\n')"
+# Add a certificate (base64 DER, not base64 of the PEM text)
+ipa user-add-cert jdoe --certificate="$(openssl x509 -outform der -in /path/to/user.crt | base64 -w 0)"
 
 # Set account expiration date
-ipa user-mod jdoe --setattr=krbPrincipalExpiration=20270101000000Z
+ipa user-mod jdoe --principal-expiration=20270101000000Z
 
 # Reset password (admin resets for user)
 ipa passwd jdoe
@@ -135,9 +135,9 @@ graph TD
     A["Stage User<br/>cn=staged users"] -->|ipa stageuser-activate| B["Active User<br/>cn=users,cn=accounts"]
     B -->|ipa user-disable| C["Disabled User<br/>nsAccountLock=TRUE"]
     C -->|ipa user-enable| B
-    B -->|ipa user-del| D["Preserved User<br/>cn=deleted users"]
+    B -->|ipa user-del --preserve| D["Preserved User<br/>cn=deleted users"]
     D -->|ipa user-undel| B
-    D -->|ipa user-del --permanent| E["Permanently Deleted<br/>cannot restore"]
+    B -->|ipa user-del| E["Permanently Deleted<br/>cannot restore"]
 
 
 ```
@@ -157,8 +157,9 @@ ipa user-disable jdoe
 # Re-enable
 ipa user-enable jdoe
 
-# Soft-delete (preserve) — retains uid/gid for reference
-ipa user-del jdoe   # goes to preserved by default
+# Soft-delete (preserve) — retains uid/gid so the account can be restored.
+# Preserve is opt-in. Plain `ipa user-del` removes the entry.
+ipa user-del jdoe --preserve
 
 # View preserved users
 ipa user-find --preserved=true
@@ -166,8 +167,8 @@ ipa user-find --preserved=true
 # Restore a preserved user
 ipa user-undel jdoe
 
-# Permanently delete (no restore possible)
-ipa user-del jdoe --permanent
+# Permanently delete (no restore possible). This is the default.
+ipa user-del jdoe
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -329,10 +330,7 @@ graph LR
     R2 -->|assigned to users| U2["bwilson uid=1200001"]
 ```
 
-> 📝 The neat range boundaries above are illustrative for teaching. Real DNA
-> ranges are not 200k-wide blocks at round numbers — IPA carves each replica a
-> sub-range (default 200000 IDs) starting at a randomly chosen base inside the
-> domain range. Use `ipa idrange-find` and the DNA plugin config to see actual values.
+> 📝 The domain ID range (`EXAMPLE.COM_id_range`, type `ipa-local`) is one pool. The default size is 200000 IDs at a random base. DNA only splits that pool across replicas. A second replica does not receive another 200000 IDs. The round numbers in the diagram are illustrative. Use `ipa idrange-find` and the DNA plugin config to see the live values.
 
 ```bash
 # View current ID range
@@ -365,9 +363,12 @@ graph TD
 # View all ID ranges (local + trust)
 ipa idrange-find --all
 
-# Trust range is created automatically during 'ipa trust-add'
-# To manually adjust base ID of a range:
-ipa idrange-mod "AD.EXAMPLE.COM_id_range" --base-id=2000000
+# Trust range is created by 'ipa trust-add --range-type=ipa-ad-trust'.
+# ipa-ad-trust UIDs are derived from the AD SID inside that fence. They are
+# not base+1, and they are not allocated by DNA.
+# Do not change --base-id on a live trust range. That renumbers every mapped
+# UID and breaks file ownership.
+ipa idrange-find --all
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -543,9 +544,9 @@ ipa group-add engineering --desc="Engineering Umbrella"
 
 # ── STEP 3: Add members ───────────────────────────────────────────────────────
 
-ipa group-add-member developers --users=alice,bob
+ipa group-add-member developers --users=alice --users=bob
 ipa group-add-member ops --users=carol
-ipa group-add-member engineering --groups=developers,ops
+ipa group-add-member engineering --groups=developers --groups=ops
 
 # ── STEP 4: Verify membership ─────────────────────────────────────────────────
 
@@ -554,6 +555,7 @@ ipa group-show engineering
 
 # ── STEP 5: Automember rule ───────────────────────────────────────────────────
 
+ipa group-add contractors --desc="Contractor accounts"
 ipa automember-add contractors --type=group
 ipa automember-add-condition contractors \
   --type=group \
@@ -585,8 +587,9 @@ ipa user-show bob | grep "Account disabled"
 # Re-enable bob
 ipa user-enable bob
 
-# Soft-delete carol (preserved)
-ipa user-del carol
+# Soft-delete carol (preserved). Without --preserve the entry is gone
+# and user-undel cannot restore it.
+ipa user-del carol --preserve
 ipa user-find --preserved=true
 
 # Restore carol

@@ -336,7 +336,7 @@ ipa topologysegment-find domain
 # EOF
 
 # Run diagnostics
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 ```
 
 [↑ Back to TOC](#table-of-contents)
@@ -451,11 +451,9 @@ graph TD
 # CA RENEWAL master — IPA-managed, shown in config
 ipa config-show | grep "IPA CA renewal master"
 
-# CRL GENERATION master — a Dogtag CS.cfg setting, checked per server
-sudo grep -r "ca.crl.MasterCRL.enable" \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-# CRL master: ca.crl.MasterCRL.enable=true
-# Non-master: ca.crl.MasterCRL.enable=false
+# CRL generation master. Use ipa-crlgen-manage. Do not sed CS.cfg.
+# The live keys are ca.crl.MasterCRL.enableCRLUpdates and enableCRLCache.
+ipa-crlgen-manage status
 ```
 
 ### 6.3 Moving the CA Renewal Master
@@ -475,44 +473,21 @@ sudo getcert list | grep -E "status|ca-error"
 
 ### 6.4 Moving the CRL Generation Master
 
-The CRL master is **not** an `ipa config-mod` option — it is the `ca.crl.MasterCRL.enable` setting in each server's Dogtag `CS.cfg`. Changing it requires editing that file while `pki-tomcatd` is stopped.
+The CRL master is **not** an `ipa config-mod` option. Move it with `ipa-crlgen-manage` on each CA replica. That tool sets `ca.crl.MasterCRL.enableCRLUpdates` and `enableCRLCache` and updates the CRL proxy. A `sed` of `ca.crl.MasterCRL.enable` does not match the keys Dogtag 11 uses, so two publishers can stay active.
 
-> ⚠️ Editing `CS.cfg` while `pki-tomcatd` is running risks the change being overwritten on shutdown and can corrupt the CA configuration. **Stop the service first, back up `CS.cfg`, then edit.** Never enable CRL generation on more than one server at a time.
+> ⚠️ Enable CRL generation on one server only. Disable the old master before enabling the new one.
 
 ```bash
-# --- On the OLD CRL master (ipa1): DISABLE CRL generation ---
-# 1. Stop the CA before editing CS.cfg
-sudo systemctl stop pki-tomcatd@pki-tomcat.service
+# On the old CRL master
+ipa-crlgen-manage disable
 
-# 2. Back up CS.cfg first
-sudo cp -a /etc/pki/pki-tomcat/ca/CS.cfg \
-    /etc/pki/pki-tomcat/ca/CS.cfg.bak.$(date +%F)
+# On the new CRL master
+ipa-crlgen-manage enable
+ipa-crlgen-manage status
 
-# 3. Disable CRL generation
-sudo sed -i \
-    's/^ca.crl.MasterCRL.enable=true/ca.crl.MasterCRL.enable=false/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-
-# 4. Start the CA again
-sudo systemctl start pki-tomcatd@pki-tomcat.service
-
-
-# --- On the NEW CRL master (ipa2): ENABLE CRL generation ---
-sudo systemctl stop pki-tomcatd@pki-tomcat.service
-sudo cp -a /etc/pki/pki-tomcat/ca/CS.cfg \
-    /etc/pki/pki-tomcat/ca/CS.cfg.bak.$(date +%F)
-sudo sed -i \
-    's/^ca.crl.MasterCRL.enable=false/ca.crl.MasterCRL.enable=true/' \
-    /etc/pki/pki-tomcat/ca/CS.cfg
-sudo systemctl start pki-tomcatd@pki-tomcat.service
-
-# --- Verify: exactly one master enabled, CRL fresh on the new one ---
 curl -s http://ipa2.example.com/ipa/crl/MasterCRL.bin | \
     openssl crl -inform DER -noout -lastupdate -nextupdate
-sudo grep -r "ca.crl.MasterCRL.enable" /etc/pki/pki-tomcat/ca/CS.cfg
 ```
-
-> Only one server should have `ca.crl.MasterCRL.enable=true` after the move. Validate the published CRL timestamps before relying on the new master.
 
 [↑ Back to TOC](#table-of-contents)
 
@@ -579,13 +554,13 @@ nmcli connection up "System eth0"
 
 ```bash
 # Run all health checks
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 
 # Run only replication checks
 sudo ipa-healthcheck --source ipahealthcheck.ds.replication
 
 # Output as JSON for monitoring integration
-sudo ipa-healthcheck --all --output-type json | \
+sudo ipa-healthcheck --output-type json | \
     python3 -m json.tool | \
     grep -A3 '"result": "ERROR"'
 
@@ -598,20 +573,20 @@ sudo ipa-healthcheck --all --output-type json | \
 
 ### 8.2 Replication Lag Monitoring
 
-📝 The `-p 'DM_Password'` argument shown below exposes the Directory Manager password to shell history and the process list (`ps`). Omit `-p` to be prompted interactively instead — preferred on shared or production hosts. The same applies to every `ipa-replica-manage -p` call in this module.
-
 ```bash
-# Check replication status via ipa-replica-manage
-sudo ipa-replica-manage -p 'DM_Password' list
-sudo ipa-replica-manage -p 'DM_Password' list ipa1.example.com
+# Current topology. ipa-replica-manage list/status/connect/del are legacy.
+ipa server-find
+ipa topologysegment-find domain
+ipa topologysegment-find ca
+ipa topologysuffix-verify domain
 
-# Check last update time for each agreement
-sudo ipa-replica-manage -p 'DM_Password' status ipa2.example.com
-
-# Force immediate sync
-sudo ipa-replica-manage -p 'DM_Password' force-sync \
-    --from=ipa1.example.com
+# Full re-sync of one direction. <segment> is the name from topologysegment-find,
+# for example ipa1.example.com-to-ipa2.example.com.
+# --left reinitializes the left node from the right, and the reverse for --right.
+ipa topologysegment-reinitialize domain ipa1.example.com-to-ipa2.example.com --right
 ```
+
+`ipa-replica-manage` remains the tool for `clean-ruv` and DNA range display. Do not use it for list, status, or re-initialize. `clean-ruv` on a replica ID that is still online breaks that replica.
 
 Use lag thresholds with workload context:
 - Under 60 seconds is a healthy target for routine writes in a stable LAN.
@@ -644,7 +619,7 @@ sudo ldapsearch -x -H ldap://localhost \
 ```mermaid
 graph TD
     subgraph Health Checks
-        C1[ipa-healthcheck --all]
+        C1[ipa-healthcheck]
         C2[ipa-replica-manage status]
         C3[389-DS replication monitor]
         C4[Kerberos principal check]
@@ -1022,7 +997,7 @@ ipa user-del repl-test
 
 ```bash
 # On each server
-sudo ipa-healthcheck --all
+sudo ipa-healthcheck
 
 # Check replication specifically
 sudo ipa-healthcheck \

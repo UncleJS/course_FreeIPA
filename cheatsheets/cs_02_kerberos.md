@@ -50,7 +50,7 @@ KRB5_TRACE=/dev/stderr kinit admin 2>&1
 
 # List tickets
 klist                            # summary
-klist -v                         # verbose (includes encryption types)
+klist -e -f                     # encryption types and ticket flags
 klist -e                         # show encryption types
 klist -f                         # show ticket flags
 klist -c /tmp/krb5cc_1000        # specific ccache
@@ -381,7 +381,7 @@ sudo chronyc makestep
 kinit admin
 
 # Cannot contact KDC
-dig +short SRV _kerberos._tcp.EXAMPLE.COM
+dig +short _kerberos._tcp.example.com SRV
 nc -zv ipa1.example.com 88
 
 # Client not found
